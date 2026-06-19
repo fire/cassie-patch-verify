@@ -24,14 +24,17 @@ mirror strokes that 68 patches reference, capping parity at 166 — kept them
 that the walk closes a *superset* loop (boundary + extra strokes) instead of the
 minimal inner face — 137 patches have a produced superset, and 100 are within
 1–2 strokes (`off1+off2`). This is a **minimal-face-selection** problem in the
-walk, not arrangement resolution. Tested and *neutral*: unioning all 4 legacy
-walk variants instead of 1 added zero unique sets (orientation flips collapse
-under sorted-edge dedup) — reverted. The real fix is making the walk extract
-minimal faces: `findCyclesPort` has no per-edge manifold cap (`cycle_count≥2`)
-the way legacy `findCycles` / the C++ do, so it never re-walks an edge to pick
-up the inner face on its other side. Decisive next lever: add the manifold cap
-(each edge in ≤2 cycles) to `findCyclesPort`, or switch the turn rule to the
-standard most-clockwise-next-edge minimal-cycle traversal, then re-measure.
+walk, not arrangement resolution. Two cap/union levers tested and **rejected**
+(see TOMBSTONES): unioning all 4 legacy walk variants was *neutral* (0 new sets);
+porting the C++ per-edge manifold cap to `findCyclesPort` was *negative* (48→47,
+order-dependent pruning blocked minimal faces). So the gap is **not** the cap and
+**not** coverage — it is the per-step **turn rule**: `nextEdgePort`'s smooth-node
+"±1 in CCW neighbor order" closes the wrong (superset) face from every seed on
+137 patches. Decisive next lever: make the turn pick the minimal face directly —
+i.e. the next edge in rotational order taken as *most-clockwise from the reversed
+incoming direction* (standard planar minimal-cycle traversal), and verify
+`neighborsCcw` (`NodeAugment`) is sorted consistently with that convention. This
+is a turn-rule change inside `nextEdgePort`, measured on `cycle_sweep`.
 
 Research findings (file:line in the cassie-lean Lean tree unless noted):
 

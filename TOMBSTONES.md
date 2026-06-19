@@ -52,6 +52,22 @@ under-resolution is (see OPEN_GAPS). Surviving knowledge: `cycle_sweep` is the
 fast oracle for testing any walk-logic change — rebuild + run, read `GRAND…
 exact=N/234`.
 
+## "The manifold cap (≤2 cycles/edge) recovers minimal faces in findCyclesPort" — disproven
+
+`findCyclesPort` enumerates a cycle from every (seed-edge, start-node) and dedups
+by edge-set — no per-edge manifold cap, unlike the C++ `find_cycles`. Hypothesis:
+porting the cap (each edge in ≤2 cycles + a consumed half-edge set, bumped on
+close) would stop the walk closing supersets and yield the minimal planar faces.
+Implemented faithfully and measured: parity **48→47**, unique cycle-sets
+**309→277**, supersets 137→131. So the cap *did* cut supersets slightly, but it
+is **order-dependent** — when a superset closes first it consumes an edge's two
+slots and blocks the minimal faces that share that edge, pruning more good cycles
+than bad. The enumerate-all-then-dedup approach finds strictly more faces.
+Reverted. The cap is not the lever; the lever is the per-step **turn selection**
+(make the walk trace the minimal face from the start), which the cap can't fix
+after the fact. Also tested neutral: unioning all 4 legacy walk variants instead
+of 1 added zero unique sets (orientation flips collapse under sorted-edge dedup).
+
 ## "T7 (15k samples) is too dense for interpreted Lean, skip it" — dead
 
 The comment in `CycleSweep.lean`. The witness-DAG ladder escalates `walkSteps` on
