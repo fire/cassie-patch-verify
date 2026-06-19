@@ -204,19 +204,28 @@ private def junctions (pa pb na nb : Array Vec3) (eps2 : Float) : Array Vec3 :=
     found := consider found nb pa
     return found
 
+/-- Backtracking Hamiltonian cycle search from node 0 in `adj` (size `k`).
+`partial` is safe: depth strictly increases to `k`, so recursion always halts. -/
+private partial def hamiltonBt (adj : Array (Array Nat)) (k : Nat)
+    (cur prev depth : Nat) (seen : Array Bool) : Bool :=
+  if depth == k then
+    (adj.getD cur #[]).contains 0
+  else
+    (adj.getD cur #[]).any fun nb =>
+      nb < k && nb != prev && !(seen.getD nb true) &&
+        hamiltonBt adj k nb cur (depth + 1) (seen.set! nb true)
+
 /-- Does the patch boundary `B` form a single closed cycle?
 - `k=1`: a single closed-loop stroke whose endpoints meet within eps.
 - `k=2`: a lens — two arcs sharing at least two junctions.
-- `k≥3`: every boundary stroke meets at least two others (degree ≥ 2);
-  a greedy Hamiltonian walk visits all and returns to start. Degree > 2 is
-  allowed (a stroke legitimately crossed mid-span by another boundary stroke
-  has extra junctions); the greedy walk finds the cycle if it can. -/
+- `k≥3`: every boundary stroke meets at least 2 others; a backtracking
+  Hamiltonian search finds the cycle. Degree > 2 is allowed (a stroke
+  crossed mid-span by another boundary stroke has extra junctions). -/
 def formsCycle (B : Array Nat) (polys xnodes : Array (Array Vec3)) : Bool := Id.run do
   let eps2 : Float := 1.0e-4  -- ~1cm; flat region of the eps-insensitive ctrlPts curve
   let k := B.size
   let pl : Nat → Array Vec3 := fun s => if s < polys.size then polys[s]! else #[]
   let nd : Nat → Array Vec3 := fun s => if s < xnodes.size then xnodes[s]! else #[]
-  -- k=1: a single stroke forming a closed loop (start ≈ end).
   if k == 1 then
     let p := pl B[0]!
     return p.size ≥ 2 && vdist2 p[0]! p[p.size - 1]! < eps2
@@ -230,27 +239,11 @@ def formsCycle (B : Array Nat) (polys xnodes : Array (Array Vec3)) : Bool := Id.
       if ¬ (junctions (pl B[a]!) (pl B[b]!) (nd B[a]!) (nd B[b]!) eps2).isEmpty then
         adj := adj.modify a (·.push b); adj := adj.modify b (·.push a)
         deg := deg.modify a (· + 1);    deg := deg.modify b (· + 1)
-  -- Every stroke must meet at least 2 others; mid-span crossings give degree > 2.
   for a in [:k] do
     if deg[a]! < 2 then return false
-  -- Greedy Hamiltonian walk: always pick the first non-previous neighbor.
-  -- For degree-2 nodes this is deterministic; for degree > 2 it's a greedy
-  -- heuristic that succeeds when the cycle-edge happens to come first.
-  let mut prev := k
-  let mut cur := 0
-  let mut seen : Array Bool := Array.replicate k false
-  let mut ok := true
-  for _ in [:k] do
-    if seen[cur]! then ok := false
-    seen := seen.set! cur true
-    let nbrs := adj[cur]!
-    let mut nxt := cur
-    let mut found := false
-    for nb in nbrs do
-      if ¬ found && nb != prev then
-        nxt := nb; found := true
-    prev := cur; cur := nxt
-  return ok ∧ seen.all id ∧ cur == 0
+  -- Backtracking Hamiltonian cycle: handles degree>2 nodes correctly.
+  let seen := (Array.replicate k false).set! 0 true
+  return hamiltonBt adj k 0 k 1 seen
 
 /-- Fold the timeline, grouping consecutive equal-`timeId` frames, applying
 adds/deletes (with mirror partners) before evaluating that group's patches. -/
