@@ -183,7 +183,7 @@ private def clusterIncidence (polys xnodes : Array (Array Vec3))
 /-- Load the canonical session: frame timeline, per-patch boundary, and
 pre-clustered per-stroke incidence (eps applied once here). -/
 def loadSession (path : System.FilePath := "data/hat.json")
-    : IO (Array Frame × Array (Array Nat) × Array StrokeIncidence) := do
+    : IO (Array Frame × Array (Array Nat) × Array StrokeIncidence × Array (Array Vec3)) := do
   let j ← ofExcept (Json.parse (← IO.FS.readFile path))
   let frames ← ofExcept do
     (← (← j.getObjVal? "systemStates").getArr?).mapM parseFrame
@@ -216,7 +216,7 @@ def loadSession (path : System.FilePath := "data/hat.json")
       xnodes := xnodes.set! mid ((xnodes[mid - 1]!).map reflectX)
   -- Cluster all junction positions and endpoints into discrete nodes (one eps pass).
   let inc := clusterIncidence polys xnodes 1.0e-4
-  pure (frames, boundary, inc)
+  pure (frames, boundary, inc, polys)
 
 /-- Result of one full replay. `closeFrame[pid]` is the frame index at which patch
 `pid` first closed (`none` if it never did). `livePatchFinal[pid]` is whether
@@ -238,7 +238,7 @@ or eps threshold appears in the cycle check itself. -/
 
 /-- All node ids associated with stroke `sid`: junction nodes it hosts plus
 its endpoints (deduplicated). -/
-private def allNodes (inc : Array StrokeIncidence) (sid : Nat) : Array Nat :=
+def allNodes (inc : Array StrokeIncidence) (sid : Nat) : Array Nat :=
   let s := inc.getD sid { hosted := #[], endpts := #[] }
   s.endpts.foldl (fun acc e => if acc.contains e then acc else acc.push e) s.hosted
 

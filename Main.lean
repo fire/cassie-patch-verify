@@ -21,7 +21,7 @@ def main : IO Unit := do
   IO.println "cassie-patch-verify — independent witness-DAG oracle"
 
   -- 1. Temporal construction: replay the timeline and assert frame-by-frame validity.
-  let (frames, boundary, inc) ← loadSession
+  let (frames, boundary, inc, _polys) ← loadSession
   let r := replay frames boundary inc
   IO.println s!"  timeline: {frames.size} frames, {boundary.size} patches"
   IO.println s!"  membership (boundary live at create frame): {r.closedOk}/{r.patchFrames}"
