@@ -97,8 +97,8 @@
   165** across eps² 2.5e-5–4e-4 (operating at 1e-4 ≈ 1 cm) and *higher* than the
   old tuned peak. No tolerance tuning.
 - **Uses recorded data, not proximity guessing.** Reads each stroke's
-  `appliedPositionConstraints` (`isIntersection` world positions) + `inputSamples`
-  polyline from `hat.json`. Crossings are recorded *asymmetrically* (only the
+  `appliedPositionConstraints` (`isIntersection` world positions) + the
+  densely-sampled `ctrlPts` curve from `hat.json`. Crossings are recorded *asymmetrically* (only the
   later-drawn stroke logs a junction), so adjacency is confirmed *geometrically*:
   two boundary strokes are adjacent iff a recorded junction of either lies on the
   other's polyline (`nearPoly`). This fixed a first cut that found only 4/234.
