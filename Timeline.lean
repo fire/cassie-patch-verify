@@ -187,7 +187,7 @@ private def junctions (pa pb na nb : Array Vec3) (eps2 : Float) : Array Vec3 :=
 arcs sharing two junctions); `k≥3` requires every boundary stroke adjacent to
 exactly two others, all in one cycle. Adjacency is confirmed geometrically. -/
 def formsCycle (B : Array Nat) (polys xnodes : Array (Array Vec3)) : Bool := Id.run do
-  let eps2 : Float := 1.0e-4  -- (1 cm)² — slack for sampling + mirror reflection
+  let eps2 : Float := 1.0e-3  -- ~3cm: peak of the incidence/eps curve (see CHANGELOG);
   let k := B.size
   let pl : Nat → Array Vec3 := fun s => if s < polys.size then polys[s]! else #[]
   let nd : Nat → Array Vec3 := fun s => if s < xnodes.size then xnodes[s]! else #[]

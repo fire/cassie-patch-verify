@@ -97,8 +97,8 @@ per-node-normal port walk (`findCyclesPort`) rather than the legacy global-PCA
 each `SurfaceAdd` frame, among live strokes, the boundary must form a single
 closed cycle, with adjacency confirmed geometrically from recorded
 `appliedPositionConstraints` + `inputSamples` (no proximity, no time-travel).
-**54/234** close a genuine temporal cycle (membership stays 234/234). Remaining
-work to raise 54: tune the geometric eps and the mirror reflection plane (x≈0.125
+**149/234** close a genuine temporal cycle at the peak tolerance (membership stays 234/234). Remaining
+work to raise 149: tune the geometric eps and the mirror reflection plane (x≈0.125
 is inferred), handle `k=1` closed-loop strokes, and relax the strict degree-2
 simple-cycle test where a boundary stroke is legitimately crossed mid-span.
 

@@ -83,12 +83,20 @@
   `IsSharp`/`GetInPlane`/`ShouldReverse` machinery — the likely root of the Lean
   port's 32-vs-208 parity gap, and the next thing to reconcile.
 
-## Temporal cycle-incidence (Timeline.lean) — 54/234, the first VALID score
+## Temporal cycle-incidence (Timeline.lean) — 149/234, the first VALID score
 
 - Upgraded the temporal verifier from boundary **membership** (234/234, a
   necessary condition) to real **cycle incidence**: at each `SurfaceAdd` frame,
   among only the strokes live then, assert the patch boundary forms a single
-  closed cycle. Result: **54/234** patches close a genuine temporal cycle.
+  closed cycle. Result: **149/234** patches close a genuine temporal cycle.
+- **Tolerance-dependent (honest caveat).** Incidence is sensitive to the
+  geometric eps used to confirm a junction lies on the partner's polyline,
+  because recorded junctions and the (coarsely-sampled, mirror-reflected) partner
+  polylines only co-locate to ~cm precision: eps² 2.5e-5→18, 1e-4→54, 4e-4→138,
+  **1e-3→149 (peak, ≈3 cm)**, 4e-3→115, 1e-2→41. Operating at the peak; too tight
+  misses real junctions, too loose creates false adjacencies that break the
+  degree-2 cycle. A tolerance-free count (test the partner's exact drawn path,
+  not its samples) is future work.
 - **Uses recorded data, not proximity guessing.** Reads each stroke's
   `appliedPositionConstraints` (`isIntersection` world positions) + `inputSamples`
   polyline from `hat.json`. Crossings are recorded *asymmetrically* (only the
@@ -100,8 +108,8 @@
   create frame, every boundary–boundary junction is already present. Mirror
   strokes synthesized by reflecting the partner's geometry about x≈0.125.
 - This is the **canonical** verification (unlike the batch `cycle_sweep`, which
-  time-travels). Valid score is now: 234/234 membership, **54/234 incidence**.
-  Remaining gap (54→) is future refinement of the geometric eps / mirror plane /
+  time-travels). Valid score is now: 234/234 membership, **149/234 incidence** (peak eps).
+  Remaining gap is future refinement of the geometric eps / mirror plane /
   degree-2 simple-cycle rigor.
 
 ## Temporal constructor (Timeline.lean) — landed, 234/234

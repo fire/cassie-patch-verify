@@ -181,8 +181,9 @@
         },
         {
           "metric": "temporal cycle-incidence (boundary closes a cycle)",
-          "value": 54,
-          "of": 234
+          "value": 149,
+          "of": 234,
+          "comment": "peak of the eps sensitivity curve (~3cm); 18..149..41 across eps. tolerance-dependent."
         }
       ]
     },
