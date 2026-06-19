@@ -30,6 +30,8 @@ def main : IO Unit := do
       s!"temporal constructor invalid: {r.patchFrames - r.closedOk} patch(es) not closed when created"
   IO.println "  ✓ every patch's boundary is live at its create frame"
   IO.println s!"  incidence (boundary closes a real cycle, temporal): {r.incidenceOk}/{r.patchFrames}"
+  let finalLive := r.livePatchFinal.foldl (fun n b => if b then n + 1 else n) 0
+  IO.println s!"  end-state live patches (after delete cascade): {finalLive}/{r.patchFrames}"
 
   -- 2. Drive the frame-budget ladder on real patches that close at different times.
   IO.println "  frame-budget ladder (walkSteps = per-VR-frame budget):"

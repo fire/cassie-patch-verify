@@ -146,12 +146,15 @@ def loadSession (path : System.FilePath := "data/hat.json")
   pure (frames, boundary, polys, xnodes)
 
 /-- Result of one full replay. `closeFrame[pid]` is the frame index at which patch
-`pid` first closed (`none` if it never did). -/
+`pid` first closed (`none` if it never did). `livePatchFinal[pid]` is whether
+the patch is still live at session end — accounts for type-4 SurfaceDelete and
+type-2 StrokeDelete cascade. -/
 structure Replay where
-  closeFrame  : Array (Option Nat)
-  patchFrames : Nat   -- type-3 frames seen
-  closedOk    : Nat   -- of those, how many had their full boundary live (membership)
-  incidenceOk : Nat   -- of those, how many also CLOSE A CYCLE (real incidence)
+  closeFrame     : Array (Option Nat)
+  livePatchFinal : Array Bool   -- live at end of session
+  patchFrames    : Nat          -- type-3 frames seen
+  closedOk       : Nat          -- membership: boundary live at create frame
+  incidenceOk    : Nat          -- cycle incidence at create frame
   deriving Inhabited
 
 /-! ## Temporal cycle-incidence
@@ -252,11 +255,16 @@ def formsCycle (B : Array Nat) (polys xnodes : Array (Array Vec3)) : Bool := Id.
   return hamiltonBt adj k 0 k 1 seen
 
 /-- Fold the timeline, grouping consecutive equal-`timeId` frames, applying
-adds/deletes (with mirror partners) before evaluating that group's patches. -/
+adds/deletes (with mirror partners) before evaluating that group's patches.
+Implements full delete semantics:
+- Type-4 SurfaceDelete: removes one patch (no stroke cascade).
+- Type-2 StrokeDelete: removes the stroke + mirror, then cascade-deletes every
+  live patch whose recorded boundary contains that stroke id. -/
 def replay (frames : Array Frame) (boundary : Array (Array Nat))
     (polys xnodes : Array (Array Vec3)) : Replay := Id.run do
   let n := frames.size
-  let mut live  : List Nat := []
+  let mut live      : List Nat := []
+  let mut livePatch : Array Bool := Array.replicate boundary.size false
   let mut close : Array (Option Nat) := Array.replicate boundary.size none
   let mut patchFrames := 0
   let mut closedOk := 0
@@ -271,15 +279,27 @@ def replay (frames : Array Frame) (boundary : Array (Array Nat))
       for k in [i:n] do
         if scanning && frames[k]!.timeId != t then
           j := k; scanning := false
-      -- apply structural edits first
+      -- apply structural edits first (strokes, then patch deletes)
       for k in [i:j] do
         let f := frames[k]!
         if f.itype == 1 then
           live := f.eid.toNat :: live
           if f.mirror then live := (f.eid.toNat + 1) :: live
         else if f.itype == 2 then
-          live := live.filter (· != f.eid.toNat)
-          if f.mirror then live := live.filter (· != f.eid.toNat + 1)
+          -- remove stroke and mirror from live strokes
+          let sid := f.eid.toNat
+          live := live.filter (· != sid)
+          if f.mirror then live := live.filter (· != sid + 1)
+          -- cascade: kill every live patch whose boundary contains this stroke
+          for pid in [:livePatch.size] do
+            if livePatch[pid]! then
+              let bnd := boundary[pid]!
+              let hit := bnd.contains sid || (f.mirror && bnd.contains (sid + 1))
+              if hit then livePatch := livePatch.set! pid false
+        else if f.itype == 4 then
+          -- SurfaceDelete: remove exactly the named patch, strokes untouched
+          let pid := f.eid.toNat
+          if pid < livePatch.size then livePatch := livePatch.set! pid false
       -- then test which patches this gesture closed
       for k in [i:j] do
         let f := frames[k]!
@@ -293,8 +313,10 @@ def replay (frames : Array Frame) (boundary : Array (Array Nat))
             -- Real incidence: the live boundary must also close a cycle.
             if formsCycle bnd polys xnodes then
               incidenceOk := incidenceOk + 1
+            -- Mark patch live; type-4/type-2 cascades above may later kill it.
+            livePatch := livePatch.set! pid true
       i := j
-  pure { closeFrame := close, patchFrames, closedOk, incidenceOk }
+  pure { closeFrame := close, livePatchFinal := livePatch, patchFrames, closedOk, incidenceOk }
 
 def closeFrameOf (r : Replay) (pid : Nat) : Option Nat :=
   if h : pid < r.closeFrame.size then r.closeFrame[pid] else none
