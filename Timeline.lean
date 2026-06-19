@@ -204,18 +204,25 @@ private def junctions (pa pb na nb : Array Vec3) (eps2 : Float) : Array Vec3 :=
     found := consider found nb pa
     return found
 
-/-- Does the patch boundary `B` form a single closed cycle? `k=2` is a lens (two
-arcs sharing two junctions); `k≥3` requires every boundary stroke adjacent to
-exactly two others, all in one cycle. Adjacency is confirmed geometrically. -/
+/-- Does the patch boundary `B` form a single closed cycle?
+- `k=1`: a single closed-loop stroke whose endpoints meet within eps.
+- `k=2`: a lens — two arcs sharing at least two junctions.
+- `k≥3`: every boundary stroke meets at least two others (degree ≥ 2);
+  a greedy Hamiltonian walk visits all and returns to start. Degree > 2 is
+  allowed (a stroke legitimately crossed mid-span by another boundary stroke
+  has extra junctions); the greedy walk finds the cycle if it can. -/
 def formsCycle (B : Array Nat) (polys xnodes : Array (Array Vec3)) : Bool := Id.run do
-  let eps2 : Float := 1.0e-4  -- ~1cm; flat region of the now eps-insensitive curve
+  let eps2 : Float := 1.0e-4  -- ~1cm; flat region of the eps-insensitive ctrlPts curve
   let k := B.size
   let pl : Nat → Array Vec3 := fun s => if s < polys.size then polys[s]! else #[]
   let nd : Nat → Array Vec3 := fun s => if s < xnodes.size then xnodes[s]! else #[]
-  if k < 2 then return false
+  -- k=1: a single stroke forming a closed loop (start ≈ end).
+  if k == 1 then
+    let p := pl B[0]!
+    return p.size ≥ 2 && vdist2 p[0]! p[p.size - 1]! < eps2
   if k == 2 then
     return (junctions (pl B[0]!) (pl B[1]!) (nd B[0]!) (nd B[1]!) eps2).size ≥ 2
-  -- k ≥ 3: build boundary adjacency and require a single Hamiltonian cycle.
+  -- k ≥ 3: build boundary adjacency.
   let mut deg : Array Nat := Array.replicate k 0
   let mut adj : Array (Array Nat) := Array.replicate k #[]
   for a in [:k] do
@@ -223,10 +230,12 @@ def formsCycle (B : Array Nat) (polys xnodes : Array (Array Vec3)) : Bool := Id.
       if ¬ (junctions (pl B[a]!) (pl B[b]!) (nd B[a]!) (nd B[b]!) eps2).isEmpty then
         adj := adj.modify a (·.push b); adj := adj.modify b (·.push a)
         deg := deg.modify a (· + 1);    deg := deg.modify b (· + 1)
+  -- Every stroke must meet at least 2 others; mid-span crossings give degree > 2.
   for a in [:k] do
-    if deg[a]! != 2 then return false
-  -- Walk from node 0, always to the non-previous neighbor; single cycle iff we
-  -- visit every stroke exactly once and return to the start.
+    if deg[a]! < 2 then return false
+  -- Greedy Hamiltonian walk: always pick the first non-previous neighbor.
+  -- For degree-2 nodes this is deterministic; for degree > 2 it's a greedy
+  -- heuristic that succeeds when the cycle-edge happens to come first.
   let mut prev := k
   let mut cur := 0
   let mut seen : Array Bool := Array.replicate k false
@@ -235,7 +244,11 @@ def formsCycle (B : Array Nat) (polys xnodes : Array (Array Vec3)) : Bool := Id.
     if seen[cur]! then ok := false
     seen := seen.set! cur true
     let nbrs := adj[cur]!
-    let nxt := if nbrs[0]! != prev then nbrs[0]! else nbrs[1]!
+    let mut nxt := cur
+    let mut found := false
+    for nb in nbrs do
+      if ¬ found && nb != prev then
+        nxt := nb; found := true
     prev := cur; cur := nxt
   return ok ∧ seen.all id ∧ cur == 0
 
