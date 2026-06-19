@@ -6,22 +6,42 @@
     "prov": "http://www.w3.org/ns/prov#",
     "schema": "https://schema.org/",
     "xsd": "http://www.w3.org/2001/XMLSchema#",
-
     "label": "schema:name",
     "comment": "schema:description",
-    "date": { "@id": "prov:generatedAtTime", "@type": "xsd:date" },
-    "derivedFrom": { "@id": "prov:wasDerivedFrom", "@type": "@id" },
-    "source": { "@id": "prov:hadPrimarySource", "@type": "@id" },
-    "verifies": { "@id": "cpv:verifies", "@type": "@id" },
-    "pipeline": { "@id": "cpv:pipeline", "@type": "@id" },
+    "date": {
+      "@id": "prov:generatedAtTime",
+      "@type": "xsd:date"
+    },
+    "derivedFrom": {
+      "@id": "prov:wasDerivedFrom",
+      "@type": "@id"
+    },
+    "source": {
+      "@id": "prov:hadPrimarySource",
+      "@type": "@id"
+    },
+    "verifies": {
+      "@id": "cpv:verifies",
+      "@type": "@id"
+    },
+    "pipeline": {
+      "@id": "cpv:pipeline",
+      "@type": "@id"
+    },
     "entryPoint": "cpv:entryPoint",
     "location": "cpv:sourceLocation",
     "metric": "cpv:metric",
     "value": "cpv:value",
-    "of": { "@id": "cpv:ofTotal", "@type": "xsd:integer" },
+    "of": {
+      "@id": "cpv:ofTotal",
+      "@type": "xsd:integer"
+    },
     "status": "cpv:status",
     "correctsDoc": "cpv:correctsDoc",
-    "enumValue": { "@id": "cpv:enumValue", "@type": "xsd:integer" }
+    "enumValue": {
+      "@id": "cpv:enumValue",
+      "@type": "xsd:integer"
+    }
   },
   "@graph": [
     {
@@ -37,7 +57,6 @@
         "cpv:src-lean-findcyclesport"
       ]
     },
-
     {
       "@id": "cpv:dataset-hat",
       "@type": "cassie:RawSession",
@@ -45,36 +64,64 @@
       "comment": "120 user-drawn strokes, 234 created patches, 1095 VR frames. Written by the upstream StudyLog.SaveData; every Vec3/Quat passes through Utils.ChangeHandedness on export, so coordinates are handedness-flipped relative to in-engine values.",
       "source": "cpv:src-upstream-studylog"
     },
-
     {
       "@id": "cassie:interactionType",
       "@type": "cpv:VerifiedEnum",
       "label": "InteractionType enum (authoritative)",
       "comment": "Exact values from the upstream C# enum (default 0-based ordering). This CORRECTS the SSOT docs, which guessed value 4 was a 'rare op / undo-redo'; it is SurfaceDelete (deleting a patch).",
       "source": "cpv:src-upstream-interactiontype",
-      "correctsDoc": "OPEN_GAPS.md: 'undo/redo semantics are undecided' — type 4 is SurfaceDelete, not undo/redo.",
+      "correctsDoc": "OPEN_GAPS.md: 'undo/redo semantics are undecided' \u2014 type 4 is SurfaceDelete, not undo/redo.",
       "cpv:member": [
-        { "label": "Idle", "enumValue": 0 },
-        { "label": "StrokeAdd", "enumValue": 1 },
-        { "label": "StrokeDelete", "enumValue": 2 },
-        { "label": "SurfaceAdd", "enumValue": 3, "comment": "create patch" },
-        { "label": "SurfaceDelete", "enumValue": 4, "comment": "delete patch (6 frames in hat.json)" },
-        { "label": "CanvasTransform", "enumValue": 5 }
+        {
+          "label": "Idle",
+          "enumValue": 0
+        },
+        {
+          "label": "StrokeAdd",
+          "enumValue": 1
+        },
+        {
+          "label": "StrokeDelete",
+          "enumValue": 2
+        },
+        {
+          "label": "SurfaceAdd",
+          "enumValue": 3,
+          "comment": "create patch"
+        },
+        {
+          "label": "SurfaceDelete",
+          "enumValue": 4,
+          "comment": "delete patch (6 frames in hat.json)"
+        },
+        {
+          "label": "CanvasTransform",
+          "enumValue": 5
+        }
       ]
     },
-
     {
       "@id": "cpv:fact-foundByAlgo",
       "@type": "cpv:VerifiedFact",
       "label": "foundByAlgo = !userCreated, splitting two detection paths",
       "comment": "Cycle.SerializePatch sets foundByAlgo = !userCreated. The two CycleDetection.DetectCycle overloads decide it: the (segment,node) angular-ordering walk marks userCreated=false (foundByAlgo=true); the (inputPos) closest-segment walk, used when the user points at a region, marks userCreated=true (foundByAlgo=false).",
-      "source": ["cpv:src-upstream-cycle-serialize", "cpv:src-upstream-graph-callsites"],
+      "source": [
+        "cpv:src-upstream-cycle-serialize",
+        "cpv:src-upstream-graph-callsites"
+      ],
       "cpv:observation": [
-        { "metric": "patches foundByAlgo=true (auto, angular walk)", "value": 208, "of": 234 },
-        { "metric": "patches foundByAlgo=false (manual, input-guided)", "value": 26, "of": 234 }
+        {
+          "metric": "patches foundByAlgo=true (auto, angular walk)",
+          "value": 208,
+          "of": 234
+        },
+        {
+          "metric": "patches foundByAlgo=false (manual, input-guided)",
+          "value": 26,
+          "of": 234
+        }
       ]
     },
-
     {
       "@id": "cpv:fact-temporal-model",
       "@type": "cpv:VerifiedFact",
@@ -82,11 +129,18 @@
       "comment": "The independent witness oracle (Timeline.lean) folds the 1095 frames in time order. Two corrections to the SSOT action model were required and validated against all patches: (1) mirroring is on session-wide, so adding stroke r also adds mirror r+1 (the 18 'phantom' odd stroke ids patches reference); (2) a SurfaceAdd is logged at the same time as the StrokeAdd that closes it, so adds apply before that timestamp group's patch checks. A naive replay closed only 37/234.",
       "verifies": "cpv:dataset-hat",
       "cpv:observation": [
-        { "metric": "create-patch frames closed at their create frame", "value": 234, "of": 234 },
-        { "metric": "naive replay (no mirror, no grouping)", "value": 37, "of": 234 }
+        {
+          "metric": "create-patch frames closed at their create frame",
+          "value": 234,
+          "of": 234
+        },
+        {
+          "metric": "naive replay (no mirror, no grouping)",
+          "value": 37,
+          "of": 234
+        }
       ]
     },
-
     {
       "@id": "cpv:pipeline-cpp",
       "@type": "cpv:Pipeline",
@@ -102,9 +156,14 @@
       "label": "Lean port (CassieAvbd.CycleDetect)",
       "entryPoint": "CassieAvbd.CycleDetect.Walk.findCyclesPort",
       "location": "cassie/modules/cassie/lean/CassieAvbd/CycleDetect/Walk.lean:219",
-      "comment": "Has both a legacy global-PCA walk (findCycles, Walk.lean:102) and a faithful per-node-normal port (findCyclesPort, Walk.lean:219, with isSharp/getInPlane/shouldReverse). Live grand-union parity measured at 29/234 via the prebuilt cycle_sweep binary (docs' 32 was stale). Two root causes found: (1) arrangement under-resolution — ~175-189 nodes, 134/205 misses are 'not formed'; findAllSplitsByCubic coalesces ~one split per cubic-pair (Arrangement.lean:126-220). (2) transport-sign bug — transportAcrossNode (Transport.lean:99-103, called Walk.lean:254) passes +prev tangent where upstream CycleDetection.cs:349 uses -prev, a 180deg-off transport corrupting shouldReverse/getInPlane; C++ transport_across_node likely shares it.",
+      "comment": "Has both a legacy global-PCA walk (findCycles, Walk.lean:102) and a faithful per-node-normal port (findCyclesPort, Walk.lean:219, with isSharp/getInPlane/shouldReverse). Live grand-union parity measured at 29/234 via the prebuilt cycle_sweep binary (docs' 32 was stale). Two root causes found: (1) arrangement under-resolution \u2014 ~175-189 nodes, 134/205 misses are 'not formed'; findAllSplitsByCubic coalesces ~one split per cubic-pair (Arrangement.lean:126-220). (2) transport-sign bug \u2014 transportAcrossNode (Transport.lean:99-103, called Walk.lean:254) passes +prev tangent where upstream CycleDetection.cs:349 uses -prev, a 180deg-off transport corrupting shouldReverse/getInPlane; C++ transport_across_node likely shares it.",
       "derivedFrom": "cpv:pipeline-cpp",
-      "cpv:observation": { "metric": "grand-union exact parity (live, cycle_sweep, after arrangement-resolution fix)", "value": 50, "of": 234, "comment": "29 baseline; +14 multi-crossing fallback splits, +5 keep mirror strokes, +2 clockwise minimal-face turn in findCyclesPort. Rejected: transport-sign (29->27), 4-variant union (neutral), manifold cap (48->47)." }
+      "cpv:observation": {
+        "metric": "grand-union exact parity (live, cycle_sweep, after arrangement-resolution fix)",
+        "value": 50,
+        "of": 234,
+        "comment": "29 baseline; +14 multi-crossing fallback splits, +5 keep mirror strokes, +2 clockwise minimal-face turn in findCyclesPort. Rejected: transport-sign (29->27), 4-variant union (neutral), manifold cap (48->47)."
+      }
     },
     {
       "@id": "cpv:pipeline-oracle",
@@ -112,59 +171,121 @@
       "label": "Independent witness oracle (this repo)",
       "entryPoint": "CassieTimeline.replay",
       "location": "cassie-patch-verify/Timeline.lean",
-      "comment": "Temporal constructor; verifies boundary-membership 234/234 and drives the plausible-witness-dag frame-budget ladder. Does not yet verify cycle incidence (open gap).",
-      "verifies": "cpv:dataset-hat"
+      "comment": "Temporal constructor; membership 234/234 AND real temporal cycle-incidence 54/234 (boundary closes a cycle from recorded appliedPositionConstraints + inputSamples, live strokes only, no time-travel). Drives the plausible-witness-dag frame-budget ladder.",
+      "verifies": "cpv:dataset-hat",
+      "cpv:observation": [
+        {
+          "metric": "boundary membership (live at create frame)",
+          "value": 234,
+          "of": 234
+        },
+        {
+          "metric": "temporal cycle-incidence (boundary closes a cycle)",
+          "value": 54,
+          "of": 234
+        }
+      ]
     },
-
     {
       "@id": "cpv:fact-surfacing-libswap",
       "@type": "cpv:VerifiedFact",
-      "label": "Surfacing swapped CGAL→PMP and TetGen→geogram; Godot refine_patch is in sync with the DLL source",
-      "comment": "The Unity C# SurfaceManager.Triangulate DllImports Triangulation_dll.dll, built from the cassie-triangulation repo (C API `Triangulate(boundary,nB,targetEdgeLength,...)`). That repo was changed: TetGen (AGPL) replaced by geogram Delaunay (DelaunayFaces.cpp; old method names like passTetGen kept), CGAL isotropic_remeshing replaced by pmp::uniform_remeshing in src/refine.cpp, inflation pass dropped, OpenMP stripped. CMake links only geogram + pmp; README still says CGAL/Tetgen and is stale. The Godot module's src/refine.cpp mirrors cassie-triangulation/src/refine.cpp line-for-line (pmp::uniform_remeshing, 3 iters, use_projection=true, feature boundary, no inflation) — so the surfacing IS in sync with the DLL source.",
-      "source": ["cpv:src-tri-refine", "cpv:src-tri-delaunay", "cpv:src-tri-api", "cpv:src-cpp-refine"],
+      "label": "Surfacing swapped CGAL\u2192PMP and TetGen\u2192geogram; Godot refine_patch is in sync with the DLL source",
+      "comment": "The Unity C# SurfaceManager.Triangulate DllImports Triangulation_dll.dll, built from the cassie-triangulation repo (C API `Triangulate(boundary,nB,targetEdgeLength,...)`). That repo was changed: TetGen (AGPL) replaced by geogram Delaunay (DelaunayFaces.cpp; old method names like passTetGen kept), CGAL isotropic_remeshing replaced by pmp::uniform_remeshing in src/refine.cpp, inflation pass dropped, OpenMP stripped. CMake links only geogram + pmp; README still says CGAL/Tetgen and is stale. The Godot module's src/refine.cpp mirrors cassie-triangulation/src/refine.cpp line-for-line (pmp::uniform_remeshing, 3 iters, use_projection=true, feature boundary, no inflation) \u2014 so the surfacing IS in sync with the DLL source.",
+      "source": [
+        "cpv:src-tri-refine",
+        "cpv:src-tri-delaunay",
+        "cpv:src-tri-api",
+        "cpv:src-cpp-refine"
+      ],
       "cpv:discrepancy": [
-        { "label": "target edge length default", "comment": "C# caller passes 0.02f; Godot CassieSurfaceManager defaulted target_edge_length=0.1 (5x coarser). FIXED: both defaults (class member + AsyncPatchJob) set to 0.02 in cassie_surface_manager.h.", "status": "resolved" },
-        { "label": "vestigial reference-surface params", "comment": "Godot refine_patch had unused p_ref_verts/p_ref_indices (void-cast), absent from cassie-triangulation's signature. FIXED: params dropped from refine.h/refine.cpp and both call sites in cassie_triangulator.cpp; projection is via pmp use_projection=true on the input mesh, matching upstream.", "status": "resolved" },
-        { "label": "stale README (CGAL/Tetgen)", "comment": "FIXED: cassie-triangulation/README.md rewritten to reflect geogram (was TetGen) + pmp (was CGAL), inflation dropped, OpenMP stripped.", "status": "resolved" }
+        {
+          "label": "target edge length default",
+          "comment": "C# caller passes 0.02f; Godot CassieSurfaceManager defaulted target_edge_length=0.1 (5x coarser). FIXED: both defaults (class member + AsyncPatchJob) set to 0.02 in cassie_surface_manager.h.",
+          "status": "resolved"
+        },
+        {
+          "label": "vestigial reference-surface params",
+          "comment": "Godot refine_patch had unused p_ref_verts/p_ref_indices (void-cast), absent from cassie-triangulation's signature. FIXED: params dropped from refine.h/refine.cpp and both call sites in cassie_triangulator.cpp; projection is via pmp use_projection=true on the input mesh, matching upstream.",
+          "status": "resolved"
+        },
+        {
+          "label": "stale README (CGAL/Tetgen)",
+          "comment": "FIXED: cassie-triangulation/README.md rewritten to reflect geogram (was TetGen) + pmp (was CGAL), inflation dropped, OpenMP stripped.",
+          "status": "resolved"
+        }
       ]
     },
-
-    { "@id": "cpv:src-tri-refine", "@type": "prov:Entity",
-      "label": "cassie-triangulation refine.cpp (PMP uniform_remeshing — DLL source)",
-      "location": "loot-action-vertical-slice/cassie-triangulation/src/refine.cpp" },
-    { "@id": "cpv:src-tri-delaunay", "@type": "prov:Entity",
+    {
+      "@id": "cpv:src-tri-refine",
+      "@type": "prov:Entity",
+      "label": "cassie-triangulation refine.cpp (PMP uniform_remeshing \u2014 DLL source)",
+      "location": "loot-action-vertical-slice/cassie-triangulation/src/refine.cpp"
+    },
+    {
+      "@id": "cpv:src-tri-delaunay",
+      "@type": "prov:Entity",
       "label": "cassie-triangulation DelaunayFaces.cpp (geogram, replacing TetGen)",
-      "location": "loot-action-vertical-slice/cassie-triangulation/src/Utility/DelaunayFaces.cpp" },
-    { "@id": "cpv:src-tri-api", "@type": "prov:Entity",
+      "location": "loot-action-vertical-slice/cassie-triangulation/src/Utility/DelaunayFaces.cpp"
+    },
+    {
+      "@id": "cpv:src-tri-api",
+      "@type": "prov:Entity",
       "label": "cassie-triangulation Triangulation.h C API (matches SurfaceManager.cs DllImport)",
-      "location": "loot-action-vertical-slice/cassie-triangulation/src/Triangulation.h:14" },
-    { "@id": "cpv:src-cpp-refine", "@type": "prov:Entity",
+      "location": "loot-action-vertical-slice/cassie-triangulation/src/Triangulation.h:14"
+    },
+    {
+      "@id": "cpv:src-cpp-refine",
+      "@type": "prov:Entity",
       "label": "Godot module refine.cpp (mirrors cassie-triangulation; ref params unused)",
-      "location": "loot-action-vertical-slice/godot/modules/cassie/src/refine.cpp:42" },
-    { "@id": "cpv:src-cs-surfacemanager", "@type": "prov:Entity",
+      "location": "loot-action-vertical-slice/godot/modules/cassie/src/refine.cpp:42"
+    },
+    {
+      "@id": "cpv:src-cs-surfacemanager",
+      "@type": "prov:Entity",
       "label": "Unity SurfaceManager.cs (DllImport Triangulate, targetEdgeLength=0.02)",
-      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Create/Surface/SurfaceManager.cs:27" },
-
-    { "@id": "cpv:src-upstream-cycledetection", "@type": "prov:Entity",
+      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Create/Surface/SurfaceManager.cs:27"
+    },
+    {
+      "@id": "cpv:src-upstream-cycledetection",
+      "@type": "prov:Entity",
       "label": "Upstream CycleDetection.cs (auto angular walk + input-guided walk)",
-      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Data/Graph/CycleDetection.cs" },
-    { "@id": "cpv:src-upstream-cycle-serialize", "@type": "prov:Entity",
-      "label": "Cycle.SerializePatch — foundByAlgo = !userCreated",
-      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Data/Graph/Internal/Cycle.cs:127" },
-    { "@id": "cpv:src-upstream-graph-callsites", "@type": "prov:Entity",
+      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Data/Graph/CycleDetection.cs"
+    },
+    {
+      "@id": "cpv:src-upstream-cycle-serialize",
+      "@type": "prov:Entity",
+      "label": "Cycle.SerializePatch \u2014 foundByAlgo = !userCreated",
+      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Data/Graph/Internal/Cycle.cs:127"
+    },
+    {
+      "@id": "cpv:src-upstream-graph-callsites",
+      "@type": "prov:Entity",
       "label": "Graph.cs DetectCycle call sites (userCreated true vs false)",
-      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Data/Graph/Graph.cs:563,726" },
-    { "@id": "cpv:src-upstream-studylog", "@type": "prov:Entity",
-      "label": "StudyLog.cs — session schema + ChangeHandedness export",
-      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Study/StudyLog.cs" },
-    { "@id": "cpv:src-upstream-interactiontype", "@type": "prov:Entity",
+      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Data/Graph/Graph.cs:563,726"
+    },
+    {
+      "@id": "cpv:src-upstream-studylog",
+      "@type": "prov:Entity",
+      "label": "StudyLog.cs \u2014 session schema + ChangeHandedness export",
+      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Study/StudyLog.cs"
+    },
+    {
+      "@id": "cpv:src-upstream-interactiontype",
+      "@type": "prov:Entity",
       "label": "InteractionType enum",
-      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Study/StudyUtils.cs:46" },
-    { "@id": "cpv:src-cpp-findcycles", "@type": "prov:Entity",
+      "location": "loot-action-vertical-slice/cassie/Assets/Scripts/Study/StudyUtils.cs:46"
+    },
+    {
+      "@id": "cpv:src-cpp-findcycles",
+      "@type": "prov:Entity",
       "label": "C++ find_cycles()",
-      "location": "loot-action-vertical-slice/godot/modules/cassie/src/sketch/cassie_sketch_graph.cpp:789" },
-    { "@id": "cpv:src-lean-findcyclesport", "@type": "prov:Entity",
+      "location": "loot-action-vertical-slice/godot/modules/cassie/src/sketch/cassie_sketch_graph.cpp:789"
+    },
+    {
+      "@id": "cpv:src-lean-findcyclesport",
+      "@type": "prov:Entity",
       "label": "Lean findCyclesPort",
-      "location": "loot-action-vertical-slice/godot/modules/cassie/lean/CassieAvbd/CycleDetect/Walk.lean:219" }
+      "location": "loot-action-vertical-slice/godot/modules/cassie/lean/CassieAvbd/CycleDetect/Walk.lean:219"
+    }
   ]
 }

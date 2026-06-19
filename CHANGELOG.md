@@ -83,6 +83,27 @@
   `IsSharp`/`GetInPlane`/`ShouldReverse` machinery — the likely root of the Lean
   port's 32-vs-208 parity gap, and the next thing to reconcile.
 
+## Temporal cycle-incidence (Timeline.lean) — 54/234, the first VALID score
+
+- Upgraded the temporal verifier from boundary **membership** (234/234, a
+  necessary condition) to real **cycle incidence**: at each `SurfaceAdd` frame,
+  among only the strokes live then, assert the patch boundary forms a single
+  closed cycle. Result: **54/234** patches close a genuine temporal cycle.
+- **Uses recorded data, not proximity guessing.** Reads each stroke's
+  `appliedPositionConstraints` (`isIntersection` world positions) + `inputSamples`
+  polyline from `hat.json`. Crossings are recorded *asymmetrically* (only the
+  later-drawn stroke logs a junction), so adjacency is confirmed *geometrically*:
+  two boundary strokes are adjacent iff a recorded junction of either lies on the
+  other's polyline (`nearPoly`). This fixed a first cut that found only 4/234.
+- **Temporally coherent — no time-travel.** Only strokes live at the frame
+  participate; since membership guarantees the whole boundary is live by the
+  create frame, every boundary–boundary junction is already present. Mirror
+  strokes synthesized by reflecting the partner's geometry about x≈0.125.
+- This is the **canonical** verification (unlike the batch `cycle_sweep`, which
+  time-travels). Valid score is now: 234/234 membership, **54/234 incidence**.
+  Remaining gap (54→) is future refinement of the geometric eps / mirror plane /
+  degree-2 simple-cycle rigor.
+
 ## Temporal constructor (Timeline.lean) — landed, 234/234
 
 - The constructor exists and verifies. `Timeline.lean` folds the 1095

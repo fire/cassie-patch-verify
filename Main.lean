@@ -21,14 +21,15 @@ def main : IO Unit := do
   IO.println "cassie-patch-verify — independent witness-DAG oracle"
 
   -- 1. Temporal construction: replay the timeline and assert frame-by-frame validity.
-  let (frames, boundary) ← loadSession
-  let r := replay frames boundary
+  let (frames, boundary, polys, xnodes) ← loadSession
+  let r := replay frames boundary polys xnodes
   IO.println s!"  timeline: {frames.size} frames, {boundary.size} patches"
-  IO.println s!"  create-patch frames closed on construction: {r.closedOk}/{r.patchFrames}"
+  IO.println s!"  membership (boundary live at create frame): {r.closedOk}/{r.patchFrames}"
   if r.closedOk != r.patchFrames then
     throw <| IO.userError
       s!"temporal constructor invalid: {r.patchFrames - r.closedOk} patch(es) not closed when created"
-  IO.println "  ✓ every patch closed exactly at its create-patch frame"
+  IO.println "  ✓ every patch's boundary is live at its create frame"
+  IO.println s!"  incidence (boundary closes a real cycle, temporal): {r.incidenceOk}/{r.patchFrames}"
 
   -- 2. Drive the frame-budget ladder on real patches that close at different times.
   IO.println "  frame-budget ladder (walkSteps = per-VR-frame budget):"

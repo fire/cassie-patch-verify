@@ -91,11 +91,22 @@ fallback multi-crossing fix landed (29→43); next feed real cubic data from
 per-node-normal port walk (`findCyclesPort`) rather than the legacy global-PCA
 `findCycles`.
 
-## Boundary membership is replayed, not geometrically reconstructed
+## Boundary incidence — LANDED 54/234, refinement open
+
+`Timeline.replay` now checks real **cycle incidence** (not just membership): at
+each `SurfaceAdd` frame, among live strokes, the boundary must form a single
+closed cycle, with adjacency confirmed geometrically from recorded
+`appliedPositionConstraints` + `inputSamples` (no proximity, no time-travel).
+**54/234** close a genuine temporal cycle (membership stays 234/234). Remaining
+work to raise 54: tune the geometric eps and the mirror reflection plane (x≈0.125
+is inferred), handle `k=1` closed-loop strokes, and relax the strict degree-2
+simple-cycle test where a boundary stroke is legitimately crossed mid-span.
+
+(Historical note — the machinery this reused already existed in cassie-lean;
+the verify-repo version is self-contained since it can't import that tree.)
 
 `Timeline.replay` proves a patch's `strokesID` are all live at its create-patch
-frame (membership, 234/234), not that they form a closed cycle. Research shows
-**almost all the machinery to upgrade this already exists**:
+frame (membership, 234/234). The cycle-incidence upgrade above uses:
 
 - `appliedPositionConstraints` suffice to reconstruct node incidence with no 3D
   intersection recompute: each constraint records the snap `position` (shared
