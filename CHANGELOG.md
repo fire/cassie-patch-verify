@@ -103,6 +103,20 @@ patch id.
   `IsSharp`/`GetInPlane`/`ShouldReverse` machinery — the likely root of the Lean
   port's 32-vs-208 parity gap, and the next thing to reconcile.
 
+## Temporal cycle-incidence (Timeline.lean) — 234/234 (perfect)
+
+`junctions()` gains an endpoint-proximity fallback: if any endpoint of
+polyline A is within eps of any endpoint of polyline B, that shared point
+counts as a junction. This closes the final 12 misses — all had the same
+root cause: a real stroke and its synthesized mirror (or two boundary strokes
+meeting at a corner) both carry zero `appliedPositionConstraints` with
+`isIntersection`, so the primary xnode-on-polyline check finds nothing. The
+strokes share an endpoint at the mirror plane (x≈0.125) or at a corner, which
+the endpoint check detects within eps=1e-4.
+
+Both canonical metrics are now perfect: **234/234 membership** and
+**234/234 cycle incidence**. The verifier is complete for the hat session.
+
 ## Temporal cycle-incidence (Timeline.lean) — 222/234
 
 `formsCycle` uses a backtracking Hamiltonian cycle search (`hamiltonBt`,

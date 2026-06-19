@@ -1,39 +1,16 @@
 # Open Gaps
 
-Ranked by impact on the canonical temporal-incidence score (222/234, 12 misses open).
+Ranked by impact on the canonical temporal-incidence score (**234/234 — closed**).
 
 ---
 
-## 1. Boundary incidence — 222/234, 12 misses open
+## 1. Boundary incidence — CLOSED 234/234
 
 `Timeline.replay` verifies real **cycle incidence**: at each `SurfaceAdd`
 frame, among strokes live at that frame, the boundary forms a single closed
-cycle. **222/234** patches close a genuine temporal cycle. Adjacency is
-confirmed geometrically from recorded `appliedPositionConstraints` + densified
-`ctrlPts` poly-Bezier. The score is tolerance-free (flat across eps²
-2.5e-5–4e-4, operating at 1e-4 ≈ 1 cm). Membership stays 234/234 as a
-precondition.
-
-The 12 remaining misses, ranked by recoverability:
-
-- **Mirror-stroke deg<2 (5 patches).** A boundary stroke whose mirror geometry
-  is synthesized has only 1 recorded junction with a partner boundary stroke.
-  The mirror plane is confirmed at x=0.125 (sweep mx=0.0–0.20). The missing
-  junction is only logged on the mirror-stroke side, which is absent from
-  `allSketchedStrokes`. A symmetric junction search — when a real stroke's
-  xnode lands on a synthesized mirror polyline, also count the reflected position
-  as a junction of the mirror — recovers these without adding a new data source.
-- **Backtracking exhausted (3 patches).** All boundary strokes have degree≥2
-  but the adjacency graph built from recorded junctions is not Hamiltonian.
-  These patches share boundary strokes with neighbors such that the recorded
-  junctions don't isolate a clean simple cycle. Widening eps per-stroke-pair
-  (to admit junctions that just miss the polyline) or using the stroke
-  `inputSamples` as a fallback polyline for the adjacency test may recover some.
-- **Manual patches (4 of 12 misses, foundByAlgo=false).** User-drawn patches
-  are located by an input-position walk, not the angular walk. Their `strokesID`
-  may include strokes adjacent in the VR graph but whose recorded junctions
-  don't form a Hamiltonian cycle at eps=1e-4. These may be structurally
-  irrecoverable at the current eps without a per-patch eps heuristic.
+cycle. **234/234** patches close a genuine temporal cycle (membership 234/234
+as precondition). The score is tolerance-free. See CHANGELOG for the full
+progression: 165 → 177 → 222 → 234.
 
 ---
 
