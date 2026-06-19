@@ -181,9 +181,9 @@
         },
         {
           "metric": "temporal cycle-incidence (boundary closes a cycle)",
-          "value": 149,
+          "value": 165,
           "of": 234,
-          "comment": "peak of the eps sensitivity curve (~3cm); 18..149..41 across eps. tolerance-dependent."
+          "comment": "tolerance-free: densely-sampled beautified ctrlPts curve; flat at 165 across eps 2.5e-5..4e-4. (raw inputSamples gave an eps-sensitive 149 peak.)"
         }
       ]
     },

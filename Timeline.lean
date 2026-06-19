@@ -68,20 +68,41 @@ private def parseVec (j : Json) : Except String Vec3 := do
         jnumFloat (← (← j.getObjVal? "y").getNum?),
         jnumFloat (← (← j.getObjVal? "z").getNum?))
 
-/-- A stroke's `id`, its sampled polyline (`inputSamples`), and the world
-positions of its recorded *intersection* constraints. The polyline is needed
-because constraints are recorded asymmetrically (only the later-drawn stroke
-logs a junction), so adjacency is confirmed geometrically: does the partner's
-polyline pass through the junction point? -/
+/-- Cubic Bezier point at `t`. -/
+private def bezierAt (p0 p1 p2 p3 : Vec3) (t : Float) : Vec3 :=
+  let mt := 1.0 - t
+  let a := mt*mt*mt; let b := 3.0*mt*mt*t; let c := 3.0*mt*t*t; let d := t*t*t
+  (a*p0.1   + b*p1.1   + c*p2.1   + d*p3.1,
+   a*p0.2.1 + b*p1.2.1 + c*p2.2.1 + d*p3.2.1,
+   a*p0.2.2 + b*p1.2.2 + c*p2.2.2 + d*p3.2.2)
+
+/-- Densely sample a poly-Bezier given as `ctrlPts` (1+3k control points). -/
+private def densify (ctrl : Array Vec3) (per : Nat := 16) : Array Vec3 := Id.run do
+  if ctrl.size < 4 then return ctrl
+  let nseg := (ctrl.size - 1) / 3
+  let mut out : Array Vec3 := #[]
+  for s in [:nseg] do
+    let p0 := ctrl[3*s]!; let p1 := ctrl[3*s+1]!
+    let p2 := ctrl[3*s+2]!; let p3 := ctrl[3*s+3]!
+    let lo := if s == 0 then 0 else 1
+    for i in [lo:per+1] do
+      out := out.push (bezierAt p0 p1 p2 p3 (Float.ofNat i / Float.ofNat per))
+  return out
+
+/-- A stroke's `id`, its densely-sampled *beautified* curve (from `ctrlPts`), and
+the world positions of its recorded *intersection* constraints. Sampling the
+beautified curve (not raw `inputSamples`) places the polyline exactly where the
+snapped junctions land. Adjacency is confirmed geometrically because constraints
+are recorded asymmetrically (only the later-drawn stroke logs a junction). -/
 private def parseStroke (j : Json) : Except String (Nat × Array Vec3 × Array Vec3) := do
   let id   ← (← j.getObjVal? "id").getNat?
-  let poly ← (← (← j.getObjVal? "inputSamples").getArr?).mapM parseVec
+  let ctrl ← (← (← j.getObjVal? "ctrlPts").getArr?).mapM parseVec
   let cons ← (← j.getObjVal? "appliedPositionConstraints").getArr?
   let pts ← cons.foldlM (init := (#[] : Array Vec3)) fun acc c => do
     if (← (← c.getObjVal? "isIntersection").getBool?) then
       pure (acc.push (← parseVec (← c.getObjVal? "position")))
     else pure acc
-  pure (id, poly, pts)
+  pure (id, densify ctrl, pts)
 
 private def ofExcept (e : Except String α) : IO α :=
   match e with
@@ -187,7 +208,7 @@ private def junctions (pa pb na nb : Array Vec3) (eps2 : Float) : Array Vec3 :=
 arcs sharing two junctions); `k≥3` requires every boundary stroke adjacent to
 exactly two others, all in one cycle. Adjacency is confirmed geometrically. -/
 def formsCycle (B : Array Nat) (polys xnodes : Array (Array Vec3)) : Bool := Id.run do
-  let eps2 : Float := 1.0e-3  -- ~3cm: peak of the incidence/eps curve (see CHANGELOG);
+  let eps2 : Float := 1.0e-4  -- ~1cm; flat region of the now eps-insensitive curve
   let k := B.size
   let pl : Nat → Array Vec3 := fun s => if s < polys.size then polys[s]! else #[]
   let nd : Nat → Array Vec3 := fun s => if s < xnodes.size then xnodes[s]! else #[]
