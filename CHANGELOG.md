@@ -103,7 +103,17 @@ patch id.
   `IsSharp`/`GetInPlane`/`ShouldReverse` machinery — the likely root of the Lean
   port's 32-vs-208 parity gap, and the next thing to reconcile.
 
-## Temporal cycle-incidence (Timeline.lean) — 165/234, valid & tolerance-free
+## Temporal cycle-incidence (Timeline.lean) — 177/234
+
+`formsCycle` handles k=1 closed-loop strokes (single stroke whose endpoints
+meet within eps — was unconditionally false for k<2) and relaxes the degree
+check from ==2 to ≥2, allowing boundary strokes legitimately crossed mid-span
+by another boundary stroke. The greedy Hamiltonian walk iterates the neighbor
+list for degree>2 nodes instead of indexing [0]/[1]. Result: **165 → 177/234**.
+Remaining 57 misses: mirror plane precision, backtracking for greedy-walk
+failures at degree>2, and 26 manual patches. See OPEN_GAPS §1.
+
+## Temporal cycle-incidence (Timeline.lean) — 165/234, tolerance-free
 
 `Timeline.replay` verifies real **cycle incidence**: at each `SurfaceAdd` frame,
 among only the strokes live then, the patch boundary forms a single closed cycle.

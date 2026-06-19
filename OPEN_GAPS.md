@@ -1,13 +1,84 @@
 # Open Gaps
 
-## Detection parity: Lean port vs C++ vs upstream (BATCH DIAGNOSTIC)
+Ranked by impact on the canonical temporal-incidence score (177/234, 57 misses open).
+
+---
+
+## 1. Boundary incidence — 177/234, 57 misses open
+
+`Timeline.replay` verifies real **cycle incidence**: at each `SurfaceAdd`
+frame, among strokes live at that frame, the boundary forms a single closed
+cycle. **177/234** patches close a genuine temporal cycle. Adjacency is
+confirmed geometrically from recorded `appliedPositionConstraints` + densified
+`ctrlPts` poly-Bezier. The score is tolerance-free (flat across eps²
+2.5e-5–4e-4, operating at 1e-4 ≈ 1 cm). Membership stays 234/234 as a
+precondition.
+
+The 57 remaining misses break into sub-gaps:
+
+- **Mirror plane.** Mirror strokes are reflected about x≈0.125 (inferred, not
+  extracted from the session). When the plane is slightly off, the synthesized
+  `xnodes` of a mirror stroke miss the partner polyline and the junction is not
+  found. Fitting the plane from the data (e.g. mean x-midpoint of stroke-pair
+  endpoints across all real↔mirror pairs in `allSketchedStrokes`) recovers
+  those junctions. This is the highest-leverage remaining sub-gap.
+- **Greedy walk misses true cycle for degree>2 nodes.** `formsCycle` picks the
+  first non-previous neighbor at a degree>2 node; if the correct cycle-edge
+  happens to come later in the adjacency list, the walk fails. A backtracking
+  Hamiltonian search (feasible for k≤~15) recovers those cases.
+- **26 manual patches (foundByAlgo=false) may not close cleanly.** User-drawn
+  patches are located by an input-position walk, not the angular walk; their
+  `strokesID` may include strokes that are adjacent in the VR graph but whose
+  recorded junctions don't align geometrically at the chosen eps.
+
+---
+
+## 2. Delete semantics — Timeline.lean does not cascade
+
+`Timeline.lean` tracks stroke adds and removes but does not implement full
+delete semantics.
+
+**Type-2 StrokeDelete** must cascade: upstream `GraphUpdate`
+(`DrawingCanvas.cs:393-408`) + `DeleteCycles` (`Graph.cs:646-658`) destroy
+every patch whose `strokesID` contains the removed stroke. `Timeline.lean`
+removes the stroke (and mirror r+1) but does not cascade-delete those patches.
+37 of 59 deleted stroke ids appear in some patch's `strokesID`.
+
+**Type-4 SurfaceDelete** removes one patch: upstream `Graph.ManualDeletePatch`
+(`Graph.cs:249-267`) removes only that cycle, strokes untouched. `Timeline.lean`
+does not track live patches, so the inverse step is absent.
+
+The create-frame assertion (234/234) is unaffected — patches close before their
+boundary is erased — but end-state correctness requires both cascades.
+Stroke-id and patch-id spaces collide numerically (stroke 113 ≠ patch 113);
+type-2 cascade matches on stroke id within `strokesID`, type-4 on patch id.
+
+---
+
+## 3. Fixture not regenerable from the timeline
+
+`HatStrokes.lean` (138 strokes, 18 extras = mirror partners) and
+`hat_polylines.json` originate from `codegen_hat_strokes.py`, which is absent
+from disk. The fixture is not regenerable except by the batch path the temporal
+model replaces. `HatDump.lean` is an inverse roundtrip check, not a generator.
+
+`Timeline.emitFixture` closes this gap: extend `Frame`/`parseFrame` to carry
+each stroke's flattened `ctrlPts` polyline (port `_flatten_ctrl_pts`,
+`test_cassie_pipeline_bench.h:811`), synthesize mirror partners by X-reflection
+about x≈0.125, and emit `hatStrokes`/`hatStrokeIds`/`hatPatches` ordered by
+`closeFrame`. Validation: emitted `hatPatches` count is 234 and polylines pass
+the existing `_bench` parity harness.
+
+---
+
+## 4. Detection parity: batch sweep 50/234 vs 208 target (DIAGNOSTIC)
 
 > **Caveat (temporal coherence).** `cycle_sweep` builds one arrangement from
 > *all* strokes and checks every patch — a time-travelling diagnostic, not a
-> temporal verifier. The **canonical** verification is temporal (next section):
-> each patch is checked using only the strokes live at its create frame. Two
-> governing principles: **(1) use the recorded data** — `appliedPositionConstraints`
-> hold the exact junctions; **(2) no time-travel** — per-frame, live strokes only.
+> temporal verifier. The **canonical** verification is temporal (gap 1 above):
+> each patch is checked using only the strokes live at its create frame.
+> **(1) use the recorded data** — `appliedPositionConstraints` hold the exact
+> junctions; **(2) no time-travel** — per-frame, live strokes only.
 
 `cycle_sweep` matches **50/234** patches against `allCreatedPatches`. The
 algorithmic target is **208** (`foundByAlgo = !userCreated`). The arrangement
@@ -41,62 +112,9 @@ Research findings (file:line in the cassie-lean Lean tree unless noted):
   dumped; the 208 figure derives from `foundByAlgo = !userCreated`
   (`Cycle.cs:127`), not from a C++ run.
 
-## Boundary incidence — 165/234, 69 misses open
+---
 
-`Timeline.replay` verifies real **cycle incidence**: at each `SurfaceAdd`
-frame, among strokes live at that frame, the boundary forms a single closed
-cycle. **165/234** patches close a genuine temporal cycle. Adjacency is
-confirmed geometrically from recorded `appliedPositionConstraints` + densified
-`ctrlPts` poly-Bezier. The score is tolerance-free (flat across eps²
-2.5e-5–4e-4, operating at 1e-4 ≈ 1 cm). Membership stays 234/234 as a
-precondition.
-
-The 69 misses divide into three sub-gaps:
-
-- **Mirror plane.** Mirror strokes are reflected about x≈0.125 (inferred, not
-  extracted from the session). A more precise plane shifts which junctions land
-  on the mirror partner's polyline.
-- **k=1 closed-loop strokes.** `formsCycle` returns `false` for `k < 2`; a
-  single stroke whose endpoints meet forms a valid 1-cycle but is rejected.
-- **Mid-span crossings.** The degree-2 simple-cycle test rejects a boundary
-  stroke legitimately crossed mid-span by another boundary stroke (junction
-  count > 2 at that stroke).
-
-## Delete semantics — Timeline.lean does not cascade
-
-`Timeline.lean` tracks stroke adds and removes but does not implement full
-delete semantics.
-
-**Type-2 StrokeDelete** must cascade: upstream `GraphUpdate`
-(`DrawingCanvas.cs:393-408`) + `DeleteCycles` (`Graph.cs:646-658`) destroy
-every patch whose `strokesID` contains the removed stroke. `Timeline.lean`
-removes the stroke (and mirror r+1) but does not cascade-delete those patches.
-37 of 59 deleted stroke ids appear in some patch's `strokesID`.
-
-**Type-4 SurfaceDelete** removes one patch: upstream `Graph.ManualDeletePatch`
-(`Graph.cs:249-267`) removes only that cycle, strokes untouched. `Timeline.lean`
-does not track live patches, so the inverse step is absent.
-
-The create-frame assertion (234/234) is unaffected — patches close before their
-boundary is erased — but end-state correctness requires both cascades.
-Stroke-id and patch-id spaces collide numerically (stroke 113 ≠ patch 113);
-type-2 cascade matches on stroke id within `strokesID`, type-4 on patch id.
-
-## Fixture not regenerable from the timeline
-
-`HatStrokes.lean` (138 strokes, 18 extras = mirror partners) and
-`hat_polylines.json` originate from `codegen_hat_strokes.py`, which is absent
-from disk. The fixture is not regenerable except by the batch path the temporal
-model replaces. `HatDump.lean` is an inverse roundtrip check, not a generator.
-
-`Timeline.emitFixture` closes this gap: extend `Frame`/`parseFrame` to carry
-each stroke's flattened `ctrlPts` polyline (port `_flatten_ctrl_pts`,
-`test_cassie_pipeline_bench.h:811`), synthesize mirror partners by X-reflection
-about x≈0.125, and emit `hatStrokes`/`hatStrokeIds`/`hatPatches` ordered by
-`closeFrame`. Validation: emitted `hatPatches` count is 234 and polylines pass
-the existing `_bench` parity harness.
-
-## VR frame-budget validation
+## 5. VR frame-budget validation
 
 `walkSteps` in `Timeline.lean:135-138` is a frame count, not a cost in
 microseconds. No mapping from ladder rung to real VR-frame headroom exists.
