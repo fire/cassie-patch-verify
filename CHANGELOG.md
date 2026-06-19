@@ -60,6 +60,26 @@
   — the arrangement is less under-resolved but not yet complete (next: feed real
   cubic data / finer tessellation, and use the per-node-normal port walk).
 
+## Delete semantics (Timeline.lean)
+
+InteractionType enum is pinned (`StudyUtils.cs:46`): 0 Idle, 1 StrokeAdd,
+2 StrokeDelete, 3 SurfaceAdd, 4 SurfaceDelete, 5 CanvasTransform.
+
+**Type-4 SurfaceDelete (6 frames) deletes one patch.** Every elementID is a
+patch id created by an earlier type-3 frame (`meta/verification.jsonld`).
+Upstream `Graph.ManualDeletePatch` (`Graph.cs:249-267`, `userTriggered:true`)
+removes only that cycle — no cascade, strokes untouched.
+
+**Type-2 StrokeDelete (59 frames) cascades.** Upstream `GraphUpdate`
+(`DrawingCanvas.cs:393-408`) + `DeleteCycles` (`Graph.cs:646-658`) destroy
+every patch bound by the removed stroke. 37 of 59 deleted stroke ids appear
+in some patch's `strokesID` (e.g. stroke 20 bounds patches 11–42; stroke 93
+bounds 33 patches).
+
+Stroke-id and patch-id spaces collide numerically (stroke 113 ≠ patch 113).
+Type-2 cascade matches on stroke id within `strokesID`; type-4 matches on
+patch id.
+
 ## Upstream ground truth (V-Sekai CASSIE Unity C#)
 
 - Located the original port at
@@ -85,59 +105,56 @@
 
 ## Temporal cycle-incidence (Timeline.lean) — 165/234, valid & tolerance-free
 
-- Upgraded the temporal verifier from boundary **membership** (234/234, a
-  necessary condition) to real **cycle incidence**: at each `SurfaceAdd` frame,
-  among only the strokes live then, assert the patch boundary forms a single
-  closed cycle. Result: **165/234** patches close a genuine temporal cycle.
-- **Tolerance-free** (resolved an earlier eps-dependence). First cut used the raw
-  `inputSamples` polyline and was eps-sensitive (18/54/138/**149**/115/41 across
-  eps), because junctions are snap targets on the *beautified* curve, offset from
-  the raw input. Switching the polyline to the densely-sampled `ctrlPts` poly-
-  Bezier put the curve exactly where junctions land: incidence is now **flat at
-  165** across eps² 2.5e-5–4e-4 (operating at 1e-4 ≈ 1 cm) and *higher* than the
-  old tuned peak. No tolerance tuning.
-- **Uses recorded data, not proximity guessing.** Reads each stroke's
-  `appliedPositionConstraints` (`isIntersection` world positions) + the
-  densely-sampled `ctrlPts` curve from `hat.json`. Crossings are recorded *asymmetrically* (only the
-  later-drawn stroke logs a junction), so adjacency is confirmed *geometrically*:
-  two boundary strokes are adjacent iff a recorded junction of either lies on the
-  other's polyline (`nearPoly`). This fixed a first cut that found only 4/234.
-- **Temporally coherent — no time-travel.** Only strokes live at the frame
-  participate; since membership guarantees the whole boundary is live by the
-  create frame, every boundary–boundary junction is already present. Mirror
-  strokes synthesized by reflecting the partner's geometry about x≈0.125.
-- This is the **canonical** verification (unlike the batch `cycle_sweep`, which
-  time-travels). Valid score is now: 234/234 membership, **165/234 incidence** (tolerance-free).
-  Remaining gap is future refinement of the geometric eps / mirror plane /
-  degree-2 simple-cycle rigor.
+`Timeline.replay` verifies real **cycle incidence**: at each `SurfaceAdd` frame,
+among only the strokes live then, the patch boundary forms a single closed cycle.
+**165/234** patches close a genuine temporal cycle. This is the **canonical**
+verification (unlike the batch `cycle_sweep`, which time-travels). Membership
+stays 234/234 as a precondition.
 
-## Temporal constructor (Timeline.lean) — landed, 234/234
+The verifier is **tolerance-free**: the polyline is the densely-sampled `ctrlPts`
+poly-Bezier (not raw `inputSamples`), which puts the curve exactly where junctions
+land. Incidence is flat at 165 across eps² 2.5e-5–4e-4 (operating at 1e-4 ≈ 1 cm).
+The earlier `inputSamples` path peaked at 149 and was eps-sensitive
+(18/54/138/149/115/41 sweep).
 
-- The constructor exists and verifies. `Timeline.lean` folds the 1095
-  `systemStates` frames in recorded (`time`-ascending) order and asserts that at
-  every create-patch (type-3) frame the construction has *just closed* the patch
-  the data records: **234/234**. `main` throws if any patch is unclosed, so the
-  build is a real frame-by-frame check, not a print.
-- **Corrected the action model the SSOT docs had wrong** (a naive replay closed
-  only 37/234). Two fixes, both validated against all 234 patches:
-  - *Mirroring.* `mirroring` is on for the whole hat session. Adding stroke `r`
-    also brings in mirror `r+1`; deleting removes both. The 18 odd "phantom"
-    stroke ids patches reference (`5,7,9,19,21,23,25,27,29,31,33,35,39,47,49,53,
-    55,57`) are exactly these mirror partners — never in `allSketchedStrokes`
-    because only user-drawn strokes are stored. (This also resolves what
-    TOMBSTONES called the "18 inflated strokes": they are mirrors, not codegen
-    phantoms.)
-  - *Same-timestamp grouping.* A create-patch event is logged at the *same*
-    `time` as the add-stroke that closes it (type-3 just before type-1). Frames
-    sharing a `time` are one gesture; adds/deletes apply before that group's
-    patch checks. We replay recorded membership and never recompute intersections.
-- **Frame-budget ladder on real patches.** `walkSteps` now models the per-VR-frame
-  budget (OPEN_GAPS item 2): `readback budget` replays the budgeted prefix and
-  reports the patch's closing frame; `candidateIsWitness` is "patch closes within
-  budget." Demonstrated escalation on real data: patch 0 (closeFrame 21) resolves
-  @L0, patch 50 (138) @L1 after an L0 budgetHit, patch 230 (1081) @L2 — density is
-  a rung, not a wall.
-- Packaging: `Timeline` added as a `lean_lib` so Lake builds it; `Main` drives it.
+**Uses recorded data, not proximity guessing.** Each stroke's
+`appliedPositionConstraints` (`isIntersection` world positions) + densified
+`ctrlPts` curve come from `hat.json`. Crossings are recorded asymmetrically
+(only the later-drawn stroke logs a junction), so adjacency is confirmed
+geometrically: two boundary strokes are adjacent iff a recorded junction of
+either lies on the other's polyline (`nearPoly`).
+
+Mirror strokes are synthesized by reflecting the partner's geometry about x≈0.125.
+The 69 remaining misses (mirror plane precision, k=1 loops, mid-span crossings)
+are tracked in OPEN_GAPS.
+
+## Temporal constructor (Timeline.lean) — 234/234
+
+`Timeline.lean` folds the 1095 `systemStates` frames in `time`-ascending order
+and asserts that at every create-patch (type-3) frame the construction has just
+closed the patch the data records: **234/234**. `main` throws if any patch is
+unclosed, making this a real frame-by-frame check, not a print.
+
+Two properties of the action model are required for all 234 to close:
+
+- **Mirroring.** `mirroring` is on for the whole hat session. Adding stroke `r`
+  also brings in mirror `r+1`; deleting removes both. The 18 odd stroke ids patches
+  reference (`5,7,9,19,21,23,25,27,29,31,33,35,39,47,49,53,55,57`) are mirror
+  partners — absent from `allSketchedStrokes` because only user-drawn strokes are
+  stored there.
+- **Same-timestamp grouping.** A create-patch event is logged at the same `time`
+  as the add-stroke that closes it (type-3 just before type-1 in the group).
+  Frames sharing a `time` are one gesture; adds/deletes apply before that group's
+  patch checks. Membership is replayed from recorded data; intersections are not
+  recomputed.
+
+**Frame-budget ladder.** `walkSteps` models the per-VR-frame budget: `readback
+budget` replays the budgeted prefix and reports the closing frame;
+`candidateIsWitness` is "patch closes within budget." Patch 0 (closeFrame 21)
+resolves @L0; patch 50 (138) @L1 after an L0 budgetHit; patch 230 (1081) @L2 —
+density is a rung, not a wall.
+
+`Timeline` is a `lean_lib` in `lakefile.lean`; `Main` drives it.
 
 ## Verifier (cassie-patch-verify)
 
