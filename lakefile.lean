@@ -9,6 +9,8 @@ package «cassie-patch-verify» where
 require «plausible-witness-dag» from git
   "https://github.com/fire/plausible-witness-dag" @ "main"
 
+require LeanSlang from "vendor/lean-slang"
+
 -- The temporal constructor lives here so Lake builds it as a module.
 lean_lib «Timeline» where
 

@@ -240,8 +240,22 @@ ar rcs "$BUILD/libcassie_mwt.a" $(printf '%s\n' "${mwt_objs[@]}" | sort)
 echo "OK  libcassie_mwt.a  ($(du -h "$BUILD/libcassie_mwt.a" | cut -f1))  ${#mwt_objs[@]} objects"
 
 # ---------------------------------------------------------------------------
-# 4. Lean FFI wrapper
+# 4. Lean FFI wrapper + Slang RDP dispatch
 # ---------------------------------------------------------------------------
+RDP_FLAGS=(
+  -c -std=c++17 -O2 -fPIC
+  -stdlib=libc++ "-I$BREW_LLVM/include/c++/v1"
+  -fexceptions
+  -I "$FFI_INC"
+)
+
+rdp_obj="$BUILD/curve_rdp_dispatch.o"
+RDP_SRC="$REPO/ffi/curve_rdp_dispatch.cpp"
+if [ ! -f "$rdp_obj" ] || [ "$RDP_SRC" -nt "$rdp_obj" ]; then
+  echo "  c++ curve_rdp_dispatch (Slang RDP)"
+  "$CXX" "${RDP_FLAGS[@]}" "$RDP_SRC" -o "$rdp_obj"
+fi
+
 ffi_obj="$BUILD/cassie_geogram_ffi.o"
 if [ ! -f "$ffi_obj" ] || [ "$FFI_SRC" -nt "$ffi_obj" ]; then
   echo "  c++ cassie_geogram_ffi"
@@ -258,7 +272,7 @@ if [ ! -f "$compat_obj" ] || [ "$COMPAT_SRC" -nt "$compat_obj" ]; then
   "$CC" -c -O2 -fPIC "$COMPAT_SRC" -o "$compat_obj"
 fi
 
-for obj in "$ffi_obj" "$compat_obj"; do
+for obj in "$ffi_obj" "$compat_obj" "$rdp_obj"; do
   if nm -u "$obj" 2>/dev/null | grep -q __isoc23; then
     objcopy \
       --redefine-sym __isoc23_strtoll=strtoll \
@@ -270,5 +284,5 @@ for obj in "$ffi_obj" "$compat_obj"; do
   fi
 done
 
-ar rcs "$BUILD/libcassie_geogram_ffi.a" "$ffi_obj" "$compat_obj"
-echo "OK  libcassie_geogram_ffi.a  (wrapper + isoc23 compat)"
+ar rcs "$BUILD/libcassie_geogram_ffi.a" "$ffi_obj" "$compat_obj" "$rdp_obj"
+echo "OK  libcassie_geogram_ffi.a  (wrapper + isoc23 compat + Slang RDP)"

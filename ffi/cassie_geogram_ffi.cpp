@@ -31,6 +31,8 @@
 // Ming Zou 2013 DMWT triangulation (3D-native, no projection).
 // Triangulate() is defined in cassie-triangulation/src/Triangulation.cpp.
 #include "cassie_triangulation/Triangulation.h"
+// Slang-emitted RDP polyline simplifier (reduces dense stroke samples before DMWT).
+#include "curve_rdp_dispatch.h"
 #include <lean/lean.h>
 
 #include <atomic>
@@ -99,6 +101,37 @@ LEAN_EXPORT lean_obj_res cassie_geogram_delaunay_from_boundary(
         }
         while (kept.size() >= 2 && same3(kept.front(), kept.back()))
             kept.pop_back();
+        if (kept.size() < 3) {
+            return lean_io_result_mk_ok(lean_box_usize(reinterpret_cast<size_t>(res)));
+        }
+
+        // RDP simplification: reduce dense stroke samples so DMWT's edgeProtect
+        // stays within BADEDGE_LIMIT=30. Uses the same Slang-emitted kernel as
+        // the Unity CASSIE module (cassie_slang_dispatch::curve_rdp_reduce).
+        // tolerance=0.005 matches the CASSIE beautifier default (rdp_error=0.002)
+        // with some extra margin for raw stroke density.
+        {
+            std::vector<float> fpts;
+            fpts.reserve(kept.size() * 3);
+            for (size_t k : kept) {
+                fpts.push_back(static_cast<float>(src[3*k+0]));
+                fpts.push_back(static_cast<float>(src[3*k+1]));
+                fpts.push_back(static_cast<float>(src[3*k+2]));
+            }
+            const uint32_t n_in = static_cast<uint32_t>(kept.size());
+            std::vector<uint32_t> keep_mask(n_in, 0u);
+            const float rdp_tol = 0.005f;
+            uint32_t n_kept = cassie_slang_dispatch::curve_rdp_reduce(
+                fpts.data(), n_in, rdp_tol, keep_mask.data());
+            if (n_kept >= 3 && n_kept < n_in) {
+                std::vector<size_t> rdp_kept;
+                rdp_kept.reserve(n_kept);
+                for (uint32_t i = 0; i < n_in; ++i) {
+                    if (keep_mask[i]) rdp_kept.push_back(kept[i]);
+                }
+                kept = std::move(rdp_kept);
+            }
+        }
         if (kept.size() < 3) {
             return lean_io_result_mk_ok(lean_box_usize(reinterpret_cast<size_t>(res)));
         }
