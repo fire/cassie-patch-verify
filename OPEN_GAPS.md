@@ -18,6 +18,21 @@ near-crossing (29→43, nodes ~189→~228); (2) `dropPhantom` was removing the 1
 mirror strokes that 68 patches reference, capping parity at 166 — kept them
 (43→48, ceiling now 234).
 
+**The bottleneck has shifted (next lever).** Miss profile went from
+`off≥3=134` (faces not formed) to `off0=2 off1=26 off2=74 off≥3=84` with
+`producedSuperset=137`. So "not formed" dropped, and the dominant failure is now
+that the walk closes a *superset* loop (boundary + extra strokes) instead of the
+minimal inner face — 137 patches have a produced superset, and 100 are within
+1–2 strokes (`off1+off2`). This is a **minimal-face-selection** problem in the
+walk, not arrangement resolution. Tested and *neutral*: unioning all 4 legacy
+walk variants instead of 1 added zero unique sets (orientation flips collapse
+under sorted-edge dedup) — reverted. The real fix is making the walk extract
+minimal faces: `findCyclesPort` has no per-edge manifold cap (`cycle_count≥2`)
+the way legacy `findCycles` / the C++ do, so it never re-walks an edge to pick
+up the inner face on its other side. Decisive next lever: add the manifold cap
+(each edge in ≤2 cycles) to `findCyclesPort`, or switch the turn rule to the
+standard most-clockwise-next-edge minimal-cycle traversal, then re-measure.
+
 Research findings (file:line in the cassie-lean Lean tree unless noted):
 
 - **The per-node-normal machinery already exists in Lean** but isn't the one
