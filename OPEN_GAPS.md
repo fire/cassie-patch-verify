@@ -14,22 +14,27 @@ confirmed geometrically from recorded `appliedPositionConstraints` + densified
 2.5e-5–4e-4, operating at 1e-4 ≈ 1 cm). Membership stays 234/234 as a
 precondition.
 
-The 57 remaining misses break into sub-gaps:
+The 12 remaining misses (222/234) break into sub-gaps:
 
-- **Mirror plane.** Mirror strokes are reflected about x≈0.125 (inferred, not
-  extracted from the session). When the plane is slightly off, the synthesized
-  `xnodes` of a mirror stroke miss the partner polyline and the junction is not
-  found. Fitting the plane from the data (e.g. mean x-midpoint of stroke-pair
-  endpoints across all real↔mirror pairs in `allSketchedStrokes`) recovers
-  those junctions. This is the highest-leverage remaining sub-gap.
-- **Greedy walk misses true cycle for degree>2 nodes.** `formsCycle` picks the
-  first non-previous neighbor at a degree>2 node; if the correct cycle-edge
-  happens to come later in the adjacency list, the walk fails. A backtracking
-  Hamiltonian search (feasible for k≤~15) recovers those cases.
-- **26 manual patches (foundByAlgo=false) may not close cleanly.** User-drawn
-  patches are located by an input-position walk, not the angular walk; their
-  `strokesID` may include strokes that are adjacent in the VR graph but whose
-  recorded junctions don't align geometrically at the chosen eps.
+- **Mirror-stroke deg<2 (5 patches, all mirror-stroke boundaries).** Five
+  boundary strokes with synthesized mirror geometry have only 1 recorded
+  junction with a partner boundary stroke — the `appliedPositionConstraints` of
+  their real partner don't produce two intersection hits on the partner polyline.
+  Likely cause: the mirror synthesis reflects `xnodes` about x=0.125 (confirmed
+  optimal in a sweep mx=0.0–0.20), but some junctions between a real stroke and
+  a mirror stroke's partner are only logged on the mirror-stroke side (absent
+  from `allSketchedStrokes`). Recovering these requires either a second junction
+  source or eps relaxation per-stroke.
+- **Backtracking exhausted (3 patches, no mirror strokes).** All boundary
+  strokes have degree≥2 but no Hamiltonian cycle exists in the adjacency graph
+  built from recorded junctions — the adjacency graph is not Hamiltonian. These
+  patches share boundary strokes with adjacent patches in a way that the
+  recorded junctions don't form a clean simple cycle. Manual patches
+  (foundByAlgo=false) are over-represented here.
+- **Manual patches (foundByAlgo=false, 4 of 12 misses).** User-drawn patches
+  are located by an input-position walk, not the angular walk; their `strokesID`
+  may include strokes adjacent in the VR graph but whose recorded junctions
+  don't form a Hamiltonian cycle at the chosen eps.
 
 ---
 
