@@ -18,7 +18,19 @@
   Lean→Slang→Vulkan numeric solve, (3) this plausible witness oracle for the
   combinatorial detection.
 
-## Detection parity (cassie-lean CycleDetect) — 29 → 43/234
+## Detection parity (cassie-lean CycleDetect) — 29 → 48/234
+
+- **Lever 2 — keep the mirror strokes (43 → 48).** The sweep's `dropPhantom`
+  removed the 18 mirror ("phantom") strokes (`5,7,9,19,…`) before building the
+  arrangement. But 68 of 234 patches reference a mirror id, so dropping them
+  capped parity at **166/234** and stripped nodes other patches' faces need.
+  Keeping them (the 138-stroke fixture already carries their geometry) raised the
+  ceiling to 234 and parity 43 → 48, unique cycle-sets 258 → 309. This also
+  resolves a latent inconsistency: the sweep had been dropping exactly the 18
+  ids the TOMBSTONE flagged as wrong-to-drop. (Working-tree change; the godot
+  mirror's older `CycleSweep` never dropped them.)
+
+## Detection parity (cassie-lean CycleDetect) — lever 1 — 29 → 43/234
 
 - **Arrangement resolution was the lever** (transport-sign was not — see
   TOMBSTONES). The Lean sweep feeds no cubic data

@@ -9,14 +9,14 @@ real patches. Surfacing parity — refine_patch synced to cassie-triangulation.)
 The three pipelines must agree on *which patches the algorithm detects* on
 `hat.json`. Targets: `foundByAlgo = !userCreated` splits patches into **208**
 auto-detected (segment+node angular walk) and **26** manual (input-position
-walk); 208 is the parity target. **Live Lean number is 43/234** (up from 29
-after the arrangement-resolution fix below; grand union: 258 unique cycle-sets,
-43 exact, best per-config 30). Still well short of 208 — the arrangement is less
-under-resolved but not complete.
+walk); 208 is the parity target. **Live Lean number is 48/234** (up from 29;
+grand union 309 unique cycle-sets). Still well short of 208.
 
-**Progress (landed, see CHANGELOG):** the sweep fed no cubic data, so the
-fallback split path emitted one split per stroke pair; rewrote it to emit every
-coalesced near-crossing. Node counts ~189→~228, parity 29→43.
+**Progress (landed, see CHANGELOG):** (1) the sweep fed no cubic data, so the
+fallback emitted one split per stroke pair — rewrote it to emit every coalesced
+near-crossing (29→43, nodes ~189→~228); (2) `dropPhantom` was removing the 18
+mirror strokes that 68 patches reference, capping parity at 166 — kept them
+(43→48, ceiling now 234).
 
 Research findings (file:line in the cassie-lean Lean tree unless noted):
 
