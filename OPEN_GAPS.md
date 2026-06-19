@@ -36,21 +36,17 @@ Research findings (file:line in the cassie-climb Lean tree unless noted):
   node/edge counts approach upstream — no walk fix can reach 208 until the faces
   exist.
 
-- **Root cause #2 — transport-sign bug (concrete, verifiable).** Upstream
-  `CycleDetection.cs:349 TransportAcrossNode` negates the previous tangent
-  (`prev_tangent = -prevSegment.GetTangentAt(node)`) before rotating to the next
-  tangent. The Lean port passes the un-negated away-from-node tangent
-  (`Walk.lean:254` → `Transport.lean:99-103 transportAcrossNode`), i.e. `+prev`
-  vs upstream `−prev` — a 180°-off transport across every non-trivial node that
-  corrupts `transportedNormal` and hence every downstream `shouldReverse` and
-  sharp-node `getInPlane`. The C++ `transport_across_node` likely shares the bug
-  (both are bench ports). Decisive lever: negate `tPrev` to match upstream, in
-  Lean and C++, then re-measure.
+- ~~Root cause #2 — transport-sign bug~~ **tested and rejected** (see
+  TOMBSTONES). Negating `tPrev` to match upstream's literal sign moved parity
+  29→27 (worse), so it is not the lever.
 
 Order of attack: (0) pin the C++ ground truth — once Godot builds, dump
-`find_cycles()` and confirm it reproduces 208; (1) fix the transport sign (cheap,
-verifiable); (2) fix arrangement resolution (biggest); (3) make sweep + C++ use
-the per-node-normal port walk.
+`find_cycles()` and confirm it reproduces 208; (1) **fix arrangement resolution
+(biggest lever)** — `findAllSplitsByCubic` (`Arrangement.lean:126-220`) produces
+~175–189 nodes where 208 faces need more; raise splits-per-cubic /
+`samplesPerCubic` until node/edge counts and the 134 "not formed" misses drop;
+(2) make the sweep + C++ production path use the per-node-normal port walk
+(`findCyclesPort`) rather than the legacy global-PCA `findCycles`.
 
 ## Boundary membership is replayed, not geometrically reconstructed
 

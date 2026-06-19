@@ -36,6 +36,22 @@ altitude: batch parity is the wrong yardstick because the model should be
 temporal. Surviving knowledge: the `MISS-NEAREST` / `PATCH-CLASS` diagnostics in
 `cycle_sweep`.
 
+## "The transportAcrossNode sign is the parity lever" — disproven
+
+Research flagged that the Lean port passes `tPrev = tangentAwayFrom(...)` where
+upstream `CycleDetection.cs:349` uses `-prevSegment.GetTangentAt(node)`, and
+`GetTangentAt` (`Segment.cs:131-137`) always points away from the node — so the
+Lean `tPrev` is the literal negation of upstream's. Negating it to match
+upstream was a clean, faithful one-line change. Measured: grand-union parity
+went **29→27** and unique cycle-sets **168→148** — strictly *worse*. Reverted.
+The away-from-node convention the Lean port already used produces more correct
+cycles, so either a compensating orientation exists elsewhere in the port or the
+sign is washed out because the arrangement is too coarse to exercise non-trivial
+nodes. Either way the transport sign is not the lever; arrangement
+under-resolution is (see OPEN_GAPS). Surviving knowledge: `cycle_sweep` is the
+fast oracle for testing any walk-logic change — rebuild + run, read `GRAND…
+exact=N/234`.
+
 ## "T7 (15k samples) is too dense for interpreted Lean, skip it" — dead
 
 The comment in `CycleSweep.lean`. The witness-DAG ladder escalates `walkSteps` on
