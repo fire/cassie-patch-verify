@@ -18,6 +18,12 @@ lean_lib «Timeline» where
 -- Build the backing archives first: `bash build_geogram_static.sh`
 lean_lib «CassieGeogram» where
 
+-- Hexagonal ports-and-adapters pipeline (core / ports / adapters).
+lean_lib «Pipeline» where
+
+-- Property-based tests using plausible-witness-dag.
+lean_lib «PipelineTests» where
+
 @[default_target] lean_exe «cassie-patch-verify» where
   root := `Main
 
@@ -30,6 +36,19 @@ lean_exe «triangulate-patches» where
   -- --allow-multiple-definition silences any duplicate between Lean's libc++.a and this one.
   -- __isoc23_* references were renamed to strtoll/strtoull/sscanf via objcopy in
   -- build_geogram_static.sh (Fedora 44 glibc 2.43 aliases the classic names away).
+  moreLinkArgs := #[
+    "-Wl,--allow-multiple-definition",
+    ".lake/build/geogram_static/libcassie_geogram_ffi.a",
+    ".lake/build/geogram_static/libcassie_mwt.a",
+    ".lake/build/geogram_static/libcassie_pmp.a",
+    ".lake/build/geogram_static/libcassie_geogram_half.a",
+    "/home/linuxbrew/.linuxbrew/Cellar/llvm/22.1.7_1/lib/libc++.a",
+    "/home/linuxbrew/.linuxbrew/Cellar/llvm/22.1.7_1/lib/libc++abi.a",
+    "-lm", "-lpthread" ]
+
+-- End-to-end pipeline replay from raw inputSamples.
+lean_exe «run-pipeline» where
+  root := `RunPipeline
   moreLinkArgs := #[
     "-Wl,--allow-multiple-definition",
     ".lake/build/geogram_static/libcassie_geogram_ffi.a",
