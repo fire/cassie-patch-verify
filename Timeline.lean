@@ -184,24 +184,30 @@ private def nearPoly (poly : Array Vec3) (p : Vec3) (eps2 : Float) : Bool := Id.
     if ptSegDist2 p poly[k-1]! poly[k]! < eps2 then return true
   return false
 
-/-- Distinct junctions where both strokes meet: a recorded intersection of
-either stroke through which the *other's* polyline also passes (geometry fixes
-the asymmetric recording — only the later stroke logs a junction). -/
+/-- Distinct junctions where both strokes meet.
+Primary: a recorded intersection of either stroke through which the other's
+polyline also passes (geometry fixes the asymmetric recording — only the
+later stroke logs a junction).
+Fallback: shared endpoints within eps — catches real↔mirror pairs (and
+boundary strokes that meet at a corner) when both have zero xnodes. -/
 private def junctions (pa pb na nb : Array Vec3) (eps2 : Float) : Array Vec3 :=
   Id.run do
     let mut found : Array Vec3 := #[]
-    let consider := fun (found : Array Vec3) (cands other : Array Vec3) =>
-      Id.run do
-        let mut found := found
-        for p in cands do
-          if nearPoly other p eps2 then
-            let mut dup := false
-            for f in found do
-              if vdist2 p f < eps2 then dup := true
-            if ¬ dup then found := found.push p
-        return found
-    found := consider found na pb
-    found := consider found nb pa
+    let addIfNew := fun (found : Array Vec3) (p : Vec3) =>
+      if found.any (fun f => vdist2 p f < eps2) then found else found.push p
+    -- Primary: recorded intersection nodes on partner polyline.
+    for p in na do
+      if nearPoly pb p eps2 then found := addIfNew found p
+    for p in nb do
+      if nearPoly pa p eps2 then found := addIfNew found p
+    -- Fallback: endpoint-endpoint proximity.
+    let endpts : Array Vec3 → Array Vec3 := fun poly =>
+      if poly.size == 0 then #[]
+      else if poly.size == 1 then #[poly[0]!]
+      else #[poly[0]!, poly[poly.size - 1]!]
+    for ea in endpts pa do
+      for eb in endpts pb do
+        if vdist2 ea eb < eps2 then found := addIfNew found ea
     return found
 
 /-- Backtracking Hamiltonian cycle search from node 0 in `adj` (size `k`).
