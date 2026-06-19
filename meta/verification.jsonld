@@ -104,7 +104,7 @@
       "location": "cassie/modules/cassie/lean/CassieAvbd/CycleDetect/Walk.lean:219",
       "comment": "Has both a legacy global-PCA walk (findCycles, Walk.lean:102) and a faithful per-node-normal port (findCyclesPort, Walk.lean:219, with isSharp/getInPlane/shouldReverse). Live grand-union parity measured at 29/234 via the prebuilt cycle_sweep binary (docs' 32 was stale). Two root causes found: (1) arrangement under-resolution — ~175-189 nodes, 134/205 misses are 'not formed'; findAllSplitsByCubic coalesces ~one split per cubic-pair (Arrangement.lean:126-220). (2) transport-sign bug — transportAcrossNode (Transport.lean:99-103, called Walk.lean:254) passes +prev tangent where upstream CycleDetection.cs:349 uses -prev, a 180deg-off transport corrupting shouldReverse/getInPlane; C++ transport_across_node likely shares it.",
       "derivedFrom": "cpv:pipeline-cpp",
-      "cpv:observation": { "metric": "grand-union exact parity (live, cycle_sweep)", "value": 29, "of": 234 }
+      "cpv:observation": { "metric": "grand-union exact parity (live, cycle_sweep, after arrangement-resolution fix)", "value": 43, "of": 234, "comment": "was 29 before the multi-crossing fallback split fix in Arrangement.lean; transport-sign change rejected (29->27)." }
     },
     {
       "@id": "cpv:pipeline-oracle",

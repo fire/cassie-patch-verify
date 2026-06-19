@@ -9,9 +9,14 @@ real patches. Surfacing parity — refine_patch synced to cassie-triangulation.)
 The three pipelines must agree on *which patches the algorithm detects* on
 `hat.json`. Targets: `foundByAlgo = !userCreated` splits patches into **208**
 auto-detected (segment+node angular walk) and **26** manual (input-position
-walk); 208 is the parity target. **Live Lean number is 29/234** (ran the
-prebuilt `cycle_sweep` binary in `cassie-lean/.../lean`; the docs' "32" was
-stale — grand union: 168 unique cycle-sets, 29 exact, best per-config 26).
+walk); 208 is the parity target. **Live Lean number is 43/234** (up from 29
+after the arrangement-resolution fix below; grand union: 258 unique cycle-sets,
+43 exact, best per-config 30). Still well short of 208 — the arrangement is less
+under-resolved but not complete.
+
+**Progress (landed, see CHANGELOG):** the sweep fed no cubic data, so the
+fallback split path emitted one split per stroke pair; rewrote it to emit every
+coalesced near-crossing. Node counts ~189→~228, parity 29→43.
 
 Research findings (file:line in the cassie-lean Lean tree unless noted):
 
@@ -25,28 +30,25 @@ Research findings (file:line in the cassie-lean Lean tree unless noted):
   `getInPlane` / `shouldReverse`. So lever-3 below ("restore per-node normals")
   is really "make the sweep/C++ use the port walk, not the legacy one."
 
-- **Root cause #1 — arrangement under-resolution (biggest lever).** The Lean
-  arrangement yields only ~175–189 nodes / ~252–310 edges, far short of what 208
-  faces needs; 134 of 205 missed patches differ from any produced cycle by ≥3
-  strokes (not "almost found" — *not formed*), and 77 produced cycles are
-  supersets (outer loops closed instead of small inner faces).
-  `Arrangement.lean:126-220 findAllSplitsByCubic` coalesces ~one split per
-  cubic-pair where upstream splits at every crossing. Decisive lever: raise
-  intersection resolution (more splits per cubic, finer `samplesPerCubic`) until
-  node/edge counts approach upstream — no walk fix can reach 208 until the faces
-  exist.
+- **Root cause #1 — arrangement under-resolution (biggest lever; partially
+  landed).** The sweep feeds no cubic data (`CycleSweep.lean` passes `#[]`), so
+  every pair went through the fallback split path that emitted *one* split per
+  pair. **Fixed:** the fallback now emits every coalesced near-crossing
+  (`Arrangement.lean`), lifting nodes ~189→~228 and parity 29→43. Remaining
+  under-resolution to close the rest of the gap: feed the real per-stroke cubic
+  data (the `ctrlPts` in `HatRawData`) so the exact `intersectCubics` path runs
+  instead of the polyline fallback, and/or finer `samplesPerCubic`.
 
 - ~~Root cause #2 — transport-sign bug~~ **tested and rejected** (see
   TOMBSTONES). Negating `tPrev` to match upstream's literal sign moved parity
   29→27 (worse), so it is not the lever.
 
 Order of attack: (0) pin the C++ ground truth — once Godot builds, dump
-`find_cycles()` and confirm it reproduces 208; (1) **fix arrangement resolution
-(biggest lever)** — `findAllSplitsByCubic` (`Arrangement.lean:126-220`) produces
-~175–189 nodes where 208 faces need more; raise splits-per-cubic /
-`samplesPerCubic` until node/edge counts and the 134 "not formed" misses drop;
-(2) make the sweep + C++ production path use the per-node-normal port walk
-(`findCyclesPort`) rather than the legacy global-PCA `findCycles`.
+`find_cycles()` and confirm it reproduces 208; (1) **arrangement resolution** —
+fallback multi-crossing fix landed (29→43); next feed real cubic data from
+`ctrlPts` / finer tessellation; (2) make the sweep + C++ production path use the
+per-node-normal port walk (`findCyclesPort`) rather than the legacy global-PCA
+`findCycles`.
 
 ## Boundary membership is replayed, not geometrically reconstructed
 

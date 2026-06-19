@@ -18,6 +18,23 @@
   Lean→Slang→Vulkan numeric solve, (3) this plausible witness oracle for the
   combinatorial detection.
 
+## Detection parity (cassie-lean CycleDetect) — 29 → 43/234
+
+- **Arrangement resolution was the lever** (transport-sign was not — see
+  TOMBSTONES). The Lean sweep feeds no cubic data
+  (`CycleSweep.lean` passes `#[]`), so every stroke pair went through the
+  fallback split path, which emitted **one split per pair** (the single global
+  nearest point) even on pairs that truly cross multiple times — starving the
+  arrangement of nodes. Rewrote the fallback in
+  `CassieAvbd/CycleDetect/Arrangement.lean` to collect **every** near-crossing
+  per polyline pair (coalesced by world position), not just the global minimum.
+- Measured on `hat.json` via `cycle_sweep`: grand-union exact parity **29 →
+  43/234**, unique cycle-sets **168 → 258**, node counts ~189 → ~228. Per-config
+  best 26 → 30. Applied to both the working tree (cassie-lean) and the
+  git-tracked mirror (godot module). Still short of the 208 auto-detected target
+  — the arrangement is less under-resolved but not yet complete (next: feed real
+  cubic data / finer tessellation, and use the per-node-normal port walk).
+
 ## Upstream ground truth (V-Sekai CASSIE Unity C#)
 
 - Located the original port at
