@@ -29,14 +29,24 @@ minimal inner face — 137 patches have a produced superset, and 100 are within
 forcing a consistent clockwise (−1) turn cut supersets 137→102. (Earlier
 rejected, see TOMBSTONES: 4-variant union neutral; manifold cap 48→47.)
 
-**Remaining gap (50→208).** Miss profile now `off0=2 off1=28 off2=80 off≥3=74`,
-producedSuperset still 102. The remaining levers: (a) feed real cubic data
-(`ctrlPts` from `HatRawData`) so the exact `intersectCubics` path replaces the
-polyline fallback — more/correct nodes; (b) the fixed clockwise turn abandons the
-3D-sheet `reversed` logic — fine for the near-planar hat but a per-region normal
-scheme may recover faces on the genuinely non-planar parts; (c) the off1/off2=108
-near-misses (within 1–2 strokes) suggest residual arrangement noise (a stroke
-crossing a face as a chord, or a missing/extra split).
+**Remaining gap (50→208) — cheap knobs exhausted; next is a build.** Miss
+profile `off0=2 off1=28 off2=80 off≥3=74`, producedSuperset 102. Tested *neutral*
+this round (none moved 50): neutralizing the `reversed` toggle, fixing the
+sharp-node `wantNext`, and tightening `clusterEps` 0.05→0.02. So the residual gap
+is **not** a walk/coalescing parameter — it is the arrangement *topology*: the
+proximity-guessed crossings don't match the system's real graph (the off1/off2
+near-misses are chords/extra-or-missing splits, and the resolved upstream
+sketch_graph has only ~98 nodes vs our ~228, i.e. we over-segment with noise).
+
+**Decisive next lever (a real build, not a one-liner): constraint-based
+arrangement.** `HatRawData` carries each stroke's `appliedConstraints` with
+`isIntersection` world positions — the *exact* junctions the system used. Build
+the arrangement from those (project each onto the stroke → `Split`,
+`buildArrangementFromSplits`) instead of proximity. To clear the 166 ceiling this
+also needs the 18 mirror strokes synthesized (X-reflect geometry *and*
+constraints about x≈0.125). This replaces guessed topology with recorded
+topology and should both kill the near-miss noise and lift the ceiling — but it
+is ~50–80 lines of new sweep code (a focused session), not a tick experiment.
 
 Research findings (file:line in the cassie-lean Lean tree unless noted):
 
