@@ -4,7 +4,18 @@
 234/234 — and the verifier-stand-in gap — the frame-budget ladder now drives
 real patches. Surfacing parity — refine_patch synced to cassie-triangulation.)
 
-## Detection parity: Lean port vs C++ vs upstream (the core verification)
+## Detection parity: Lean port vs C++ vs upstream (BATCH DIAGNOSTIC)
+
+> **Caveat (temporal coherence).** Everything in this section is the **batch**
+> `cycle_sweep`: it builds one arrangement from *all* strokes and checks every
+> patch, so a patch created early is "detected" using strokes drawn much later —
+> i.e. it *time-travels*. This is the dead batch model (see TOMBSTONES); it
+> survives only as a parity microscope. The **canonical** verification is
+> temporal (next section): detect each patch using only the strokes live at its
+> create frame. Two governing principles for the real work: **(1) use the
+> recorded data** — `appliedPositionConstraints` are the exact junctions, so do
+> not proximity-guess crossings; **(2) no time-travel** — per-frame, live strokes
+> only.
 
 The three pipelines must agree on *which patches the algorithm detects* on
 `hat.json`. Targets: `foundByAlgo = !userCreated` splits patches into **208**
@@ -106,6 +117,27 @@ frame (membership, 234/234), not that they form a closed cycle. Research shows
 Note: `Timeline.lean` currently parses only frame fields + `strokesID`
 (`:42-52`); it never reads `ctrlPts`/constraints. This gap needs that geometry
 loaded.
+
+**This is THE canonical next lever (supersedes the batch sweep above).** Done
+temporally and from recorded data:
+- At each `SurfaceAdd` frame, restrict to the strokes **live at that frame**
+  (the `live` set `replay` already maintains, with mirror `r+1`) — *no
+  time-travel*: never use a stroke added later.
+- Build incidence from the **recorded** `appliedPositionConstraints`
+  (`isIntersection` world positions) — *not* proximity. Two live strokes are
+  adjacent iff they share an intersection position (cluster positions into nodes
+  within a small eps; the partner stroke-id is dropped on serialize, so recover
+  adjacency by coincident position). Synthesize the mirror strokes' constraints
+  by reflecting the partner's about x≈0.125.
+- Assert the patch's boundary `strokesID` forms a single closed cycle in that
+  per-frame incidence graph (every boundary stroke degree 2, connected) — real
+  incidence, replacing the membership check (keep membership as a precondition).
+- **Architecture:** `cassie-patch-verify` depends only on `plausible-witness-dag`
+  (not on the cassie-lean arrangement code), so the incidence check is
+  implemented self-contained in `Timeline.lean`. The witness-DAG ladder is the
+  natural driver: pose "patch P's boundary closes a cycle among live strokes" as
+  the existence query, with the deterministic per-frame cycle-check as the
+  `readback` (brute-force guess-and-check, escalating the search budget).
 
 ## Delete semantics (no longer "undo/redo")
 
