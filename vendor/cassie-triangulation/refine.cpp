@@ -10,6 +10,13 @@
 void refine_patch(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, float targetEdgeLength,
     Eigen::MatrixXd& V_fine, Eigen::MatrixXi& F_fine) {
 
+    // targetEdgeLength <= 0 means "no remeshing" — return the raw DMWT mesh.
+    if (targetEdgeLength <= 0.0f) {
+        V_fine = V;
+        F_fine = F;
+        return;
+    }
+
     // Build pmp::SurfaceMesh from V, F.
     pmp::SurfaceMesh mesh;
     std::vector<pmp::Vertex> vmap;

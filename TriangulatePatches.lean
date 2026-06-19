@@ -146,7 +146,7 @@ def main : IO Unit := do
   for pid in [:boundary.size] do
     let B := boundary[pid]!
     if B.size == 0 then continue
-    let (verts, tris) ← CassieTriangulate.triangulatePatch B inc polys
+let (verts, tris) ← CassieTriangulate.triangulatePatch B inc polys
     if verts.size == 0 then continue
     nTriangulated := nTriangulated + 1
     let nv := verts.size / 3
