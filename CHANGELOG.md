@@ -18,6 +18,19 @@
   Lean→Slang→Vulkan numeric solve, (3) this plausible witness oracle for the
   combinatorial detection.
 
+## Detection parity (cassie-lean CycleDetect) — 29 → 50/234
+
+- **Lever 3 — clockwise minimal-face turn (48 → 50).** `findCyclesPort`'s
+  smooth-node turn stepped ±1 in the CCW neighbor ring toggled by the
+  normal-driven `reversed` flag. That flip (Unity's logic for genuinely 3D
+  sheets) mis-fires on the near-planar hat and closes *superset* loops. Forcing
+  a consistent clockwise (−1) step traces the minimal planar face: parity
+  48 → 50, producedSuperset **137 → 102**, off≥3 84 → 74. (Measured: CCW/+1 = 47,
+  the `reversed` toggle = 48.) Tradeoff: the fixed turn abandons the 3D-sheet
+  `reversed` logic — correct for the near-planar hat target, may need
+  per-region normals for fully 3D sketches. Two earlier walk levers rejected
+  first (4-variant union neutral; manifold cap 48→47) — see TOMBSTONES.
+
 ## Detection parity (cassie-lean CycleDetect) — 29 → 48/234
 
 - **Lever 2 — keep the mirror strokes (43 → 48).** The sweep's `dropPhantom`

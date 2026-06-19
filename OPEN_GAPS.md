@@ -9,8 +9,8 @@ real patches. Surfacing parity — refine_patch synced to cassie-triangulation.)
 The three pipelines must agree on *which patches the algorithm detects* on
 `hat.json`. Targets: `foundByAlgo = !userCreated` splits patches into **208**
 auto-detected (segment+node angular walk) and **26** manual (input-position
-walk); 208 is the parity target. **Live Lean number is 48/234** (up from 29;
-grand union 309 unique cycle-sets). Still well short of 208.
+walk); 208 is the parity target. **Live Lean number is 50/234** (up from 29; grand union 242 unique
+cycle-sets). Still well short of 208.
 
 **Progress (landed, see CHANGELOG):** (1) the sweep fed no cubic data, so the
 fallback emitted one split per stroke pair — rewrote it to emit every coalesced
@@ -23,18 +23,20 @@ mirror strokes that 68 patches reference, capping parity at 166 — kept them
 `producedSuperset=137`. So "not formed" dropped, and the dominant failure is now
 that the walk closes a *superset* loop (boundary + extra strokes) instead of the
 minimal inner face — 137 patches have a produced superset, and 100 are within
-1–2 strokes (`off1+off2`). This is a **minimal-face-selection** problem in the
-walk, not arrangement resolution. Two cap/union levers tested and **rejected**
-(see TOMBSTONES): unioning all 4 legacy walk variants was *neutral* (0 new sets);
-porting the C++ per-edge manifold cap to `findCyclesPort` was *negative* (48→47,
-order-dependent pruning blocked minimal faces). So the gap is **not** the cap and
-**not** coverage — it is the per-step **turn rule**: `nextEdgePort`'s smooth-node
-"±1 in CCW neighbor order" closes the wrong (superset) face from every seed on
-137 patches. Decisive next lever: make the turn pick the minimal face directly —
-i.e. the next edge in rotational order taken as *most-clockwise from the reversed
-incoming direction* (standard planar minimal-cycle traversal), and verify
-`neighborsCcw` (`NodeAugment`) is sorted consistently with that convention. This
-is a turn-rule change inside `nextEdgePort`, measured on `cycle_sweep`.
+1–2 strokes (`off1+off2`). This was a **minimal-face-selection** problem in the walk. **Lever 3 landed
+(48→50):** `nextEdgePort`'s smooth-node turn toggled ±1 with the normal-driven
+`reversed` flag, which mis-fires on the near-planar hat and closes supersets;
+forcing a consistent clockwise (−1) turn cut supersets 137→102. (Earlier
+rejected, see TOMBSTONES: 4-variant union neutral; manifold cap 48→47.)
+
+**Remaining gap (50→208).** Miss profile now `off0=2 off1=28 off2=80 off≥3=74`,
+producedSuperset still 102. The remaining levers: (a) feed real cubic data
+(`ctrlPts` from `HatRawData`) so the exact `intersectCubics` path replaces the
+polyline fallback — more/correct nodes; (b) the fixed clockwise turn abandons the
+3D-sheet `reversed` logic — fine for the near-planar hat but a per-region normal
+scheme may recover faces on the genuinely non-planar parts; (c) the off1/off2=108
+near-misses (within 1–2 strokes) suggest residual arrangement noise (a stroke
+crossing a face as a chord, or a missing/extra split).
 
 Research findings (file:line in the cassie-lean Lean tree unless noted):
 
