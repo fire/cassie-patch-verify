@@ -14,28 +14,24 @@ progression: 165 → 177 → 222 → 234.
 
 ---
 
-## 2. Determinism — verifier output is not yet proven bit-for-bit reproducible
+## 2. Determinism — clusterIncidence is the remaining float boundary
 
-`Timeline.replay` and `formsCycle` are deterministic in intent but two sources
-of non-determinism are unverified:
+`formsCycle` is now eps-free: it operates entirely on integer node ids from
+`StrokeIncidence`. The single floating-point boundary is `clusterIncidence`,
+called once at load time from `loadSession`.
 
-- **Float ordering in `nearPoly` / `ptSegDist2`.** The eps² threshold (1e-4)
-  is applied to IEEE 754 double results. On different hardware or with different
-  compiler optimisation levels, fused-multiply-add contraction can shift the
-  last bit of a squared-distance result across the threshold, silently changing
-  which junctions are found and therefore which patches close a cycle.
-- **`hamiltonBt` neighbor-visit order.** The adjacency lists in `adj` are built
-  by iterating boundary indices `a < b`, so the order is deterministic given a
-  fixed input array. But if `boundary[pid]` ever contains duplicates or the JSON
-  parser returns fields in a different order across platforms, the adjacency list
-  changes and the backtracking finds a different (or no) Hamiltonian cycle.
+Within `clusterIncidence`, IEEE 754 variance can affect which positions cluster
+together: if two positions are within eps² = 1e-4 on one platform but differ
+by one ULP across the threshold on another (due to FMA contraction or
+compiler reordering), they get different node ids. This would change the
+`hosted` and `endpts` sets and therefore the adjacency graph.
 
-Neither has caused a discrepancy on the one tested platform (x86-64 Linux,
-Lean v4.30.0, no `-O`), but neither is guaranteed. The decisive lever: replace
-the floating-point eps gate with exact rational arithmetic for the `vdist2 <
-eps2` comparisons (or prove that the IEEE 754 result is monotone in the
-relevant range), and add a property test that runs the verifier twice (from
-different `Array` construction paths) and asserts identical output.
+On the one tested platform (x86-64 Linux, Lean v4.30.0, no `-O`) the result is
+stable across runs. The decisive lever: prove the `vdist2` computation is
+monotone in the relevant range for the positions in `hat.json` (all coordinates
+are bounded and well-separated), or replace the float comparisons with exact
+rational arithmetic using the JSON-parsed mantissa and exponent values (already
+available via `JsonNumber.mantissa / 10^exponent`).
 
 ## 3. Fixture not regenerable from the timeline
 
