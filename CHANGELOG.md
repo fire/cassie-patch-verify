@@ -18,6 +18,57 @@
   Lean→Slang→Vulkan numeric solve, (3) this plausible witness oracle for the
   combinatorial detection.
 
+## Upstream ground truth (V-Sekai CASSIE Unity C#)
+
+- Located the original port at
+  `loot-action-vertical-slice/cassie/Assets/Scripts` and read the authoritative
+  source. Findings recorded as JSON-LD in `meta/verification.jsonld` (extends the
+  cassie vocab + PROV-O, with source file:line provenance).
+- **Schema is authoritative now** (`Study/StudyLog.cs`): `hat.json` is written by
+  `StudyLog.SaveData`; every Vec3/Quat passes through `Utils.ChangeHandedness` on
+  export, so coordinates are handedness-flipped from in-engine values — geometry
+  checks must account for this.
+- **InteractionType enum pinned** (`Study/StudyUtils.cs:46`): 0 Idle, 1 StrokeAdd,
+  2 StrokeDelete, 3 SurfaceAdd, 4 **SurfaceDelete**, 5 CanvasTransform. Corrects
+  the docs' "type 4 = rare/undo-redo."
+- **`foundByAlgo = !userCreated`** (`Internal/Cycle.cs:127`), and the two
+  `CycleDetection.DetectCycle` overloads decide it: the (segment,node) angular
+  walk → `userCreated=false` → the **208** auto patches; the (inputPos)
+  closest-segment walk (user points at a region) → `userCreated=true` → the **26**
+  manual patches. So 208/234 is the real algorithmic-detection target, not 234.
+- **Divergence located:** the C++ `find_cycles()` seeds one global PCA plane
+  normal reused at every node, where upstream uses per-node `Normal` plus the
+  `IsSharp`/`GetInPlane`/`ShouldReverse` machinery — the likely root of the Lean
+  port's 32-vs-208 parity gap, and the next thing to reconcile.
+
+## Temporal constructor (Timeline.lean) — landed, 234/234
+
+- The constructor exists and verifies. `Timeline.lean` folds the 1095
+  `systemStates` frames in recorded (`time`-ascending) order and asserts that at
+  every create-patch (type-3) frame the construction has *just closed* the patch
+  the data records: **234/234**. `main` throws if any patch is unclosed, so the
+  build is a real frame-by-frame check, not a print.
+- **Corrected the action model the SSOT docs had wrong** (a naive replay closed
+  only 37/234). Two fixes, both validated against all 234 patches:
+  - *Mirroring.* `mirroring` is on for the whole hat session. Adding stroke `r`
+    also brings in mirror `r+1`; deleting removes both. The 18 odd "phantom"
+    stroke ids patches reference (`5,7,9,19,21,23,25,27,29,31,33,35,39,47,49,53,
+    55,57`) are exactly these mirror partners — never in `allSketchedStrokes`
+    because only user-drawn strokes are stored. (This also resolves what
+    TOMBSTONES called the "18 inflated strokes": they are mirrors, not codegen
+    phantoms.)
+  - *Same-timestamp grouping.* A create-patch event is logged at the *same*
+    `time` as the add-stroke that closes it (type-3 just before type-1). Frames
+    sharing a `time` are one gesture; adds/deletes apply before that group's
+    patch checks. We replay recorded membership and never recompute intersections.
+- **Frame-budget ladder on real patches.** `walkSteps` now models the per-VR-frame
+  budget (OPEN_GAPS item 2): `readback budget` replays the budgeted prefix and
+  reports the patch's closing frame; `candidateIsWitness` is "patch closes within
+  budget." Demonstrated escalation on real data: patch 0 (closeFrame 21) resolves
+  @L0, patch 50 (138) @L1 after an L0 budgetHit, patch 230 (1081) @L2 — density is
+  a rung, not a wall.
+- Packaging: `Timeline` added as a `lean_lib` so Lake builds it; `Main` drives it.
+
 ## Verifier (cassie-patch-verify)
 
 - Scaffold the package on v4.30.0 with the single dep `plausible-witness-dag`

@@ -37,10 +37,13 @@ carries `time`, head/hand poses, canvas transform, `interactionType`,
 | 0 | idle / camera | 295 |
 | 5 | canvas transform | 381 |
 
-## Next (OPEN_GAPS top item): the temporal constructor
+## Temporal constructor (`Timeline.lean`) — landed
 
-Fold the 1095 `systemStates` in `time` order, dispatch on `interactionType`
-(1 add-stroke with replayed constraints, 2 delete, 3 assert-the-patch-just-closed,
-0/5 pose-only), maintain the incremental arrangement, and emit a patch the moment
-a cycle closes — proving the construction is valid frame-by-frame and runnable
-live in VR. The verifier's `readback` / `candidateIsWitness` plug into it.
+`main` folds the 1095 `systemStates` in `time` order and asserts that at every
+create-patch frame the construction has *just closed* the patch the data records:
+**234/234**. Frames sharing a `time` are one gesture (adds apply before the
+group's patch checks), and `mirroring` brings in each stroke's `r+1` partner — the
+two fixes that took a naive replay from 37/234 to 234/234. The frame-budget ladder
+then drives real patches: `walkSteps` is the per-VR-frame budget, so a late patch
+`budgetHit`s a shallow rung and resolves on a deeper one. See CHANGELOG; remaining
+work (real cycle incidence vs. mere membership) is in OPEN_GAPS.

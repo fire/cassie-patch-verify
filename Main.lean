@@ -1,39 +1,37 @@
 import PlausibleWitnessDag
-open PlausibleWitnessDag
+import Timeline
+open PlausibleWitnessDag CassieTimeline
 
-/-! # cassie-patch-verify (prototype)
+/-! # cassie-patch-verify
 
 An **independent** Lean oracle that reads the C++ cassie module's patch output
-(data only — no FFI, never linked into the Godot/C++ build) and certifies each
-patch via the `plausible-witness-dag` ladder.
+(JSON only — no FFI, never linked into the Godot/C++ build) and certifies each
+patch by replaying the VR session timeline.
 
-This first cut proves the v4.30.0 + `plausible-witness-dag` pipeline and the
-budget-escalation behaviour that rebuts "T7 is too dense to walk": a patch whose
-boundary needs a 6-step walk `budgetHit`s at L0 (4 steps) and resolves at L1
-(8 steps) instead of being declared impossible. The deterministic walk and the
-candidate predicate are the only domain inputs; the driver owns the ladder.
--/
-
-/-- Tiny escalation ladder for the demo (L0 cheap, L1 wider). -/
-def demoLadder : Array Level := #[
-  { idx := 0, walkSteps := 4, finBound := 256, numInst := 200 },
-  { idx := 1, walkSteps := 8, finBound := 256, numInst := 200 } ]
-
-/-- Stand-in patch certification: the witness is a boundary walk of `targetSteps`
-    steps. `candidateIsWitness` poses existence to `plausible`; `readback` is the
-    deterministic budgeted walk that reports `found` / `budgetHit`. -/
-def verifyPatch (name : String) (targetSteps : Nat) : IO Unit := do
-  let candidateIsWitness : Level → Nat → Bool := fun _ k => k == targetSteps
-  let readback : Nat → Readback Nat := fun budget =>
-    if budget ≥ targetSteps then
-      { value := targetSteps, found := true, witnessIdx := targetSteps, budgetHit := false }
-    else
-      { value := 0, found := false, budgetHit := true }
-  let (val, lvl, tr) ← resolve name candidateIsWitness readback demoLadder
-  IO.println s!"  {name}: boundary={val}  resolved@L{lvl}  outcome={repr tr.outcome}"
+`main` runs the temporal constructor (`Timeline.lean`): it folds the 1095
+`systemStates` frames of `data/hat.json` in `time` order and asserts that at
+every create-patch frame the construction has *just closed* the patch the data
+records — proving the build is valid frame-by-frame and therefore runnable live
+in VR. It then drives the `plausible-witness-dag` frame-budget ladder on real
+patches, where `walkSteps` models the per-VR-frame budget: a patch that closes
+late `budgetHit`s on a shallow rung and resolves on a deeper one, rebutting "T7
+is too dense to walk." -/
 
 def main : IO Unit := do
-  IO.println "cassie-patch-verify — independent witness-DAG oracle (prototype)"
-  verifyPatch "patch:small(3)" 3   -- resolves at L0
-  verifyPatch "patch:brim(6)"  6   -- L0 budgetHit -> escalate -> L1 found
-  verifyPatch "patch:huge(9)"  9   -- both rungs budget-hit -> needs a deeper rung
+  IO.println "cassie-patch-verify — independent witness-DAG oracle"
+
+  -- 1. Temporal construction: replay the timeline and assert frame-by-frame validity.
+  let (frames, boundary) ← loadSession
+  let r := replay frames boundary
+  IO.println s!"  timeline: {frames.size} frames, {boundary.size} patches"
+  IO.println s!"  create-patch frames closed on construction: {r.closedOk}/{r.patchFrames}"
+  if r.closedOk != r.patchFrames then
+    throw <| IO.userError
+      s!"temporal constructor invalid: {r.patchFrames - r.closedOk} patch(es) not closed when created"
+  IO.println "  ✓ every patch closed exactly at its create-patch frame"
+
+  -- 2. Drive the frame-budget ladder on real patches that close at different times.
+  IO.println "  frame-budget ladder (walkSteps = per-VR-frame budget):"
+  for target in #[0, 50, 230] do
+    let (cf, lvl, tr) ← resolvePatch r target
+    IO.println s!"    patch {target}: closeFrame={cf}  resolved@L{lvl}  outcome={repr tr.outcome}"

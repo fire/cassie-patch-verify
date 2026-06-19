@@ -22,7 +22,10 @@ parity. Filtered ids 5,7,9,19,21,23,25,27,29,31,33,35,39,47,49,53,55,57 and
 re-ran: parity went 32→29/234 (slightly worse), node count ~213→~189. The 18
 phantoms are connected (they add nodes) but are not the cause. The inflation
 remains a real fixture bug (see OPEN_GAPS regeneration), just not the parity
-lever.
+lever. **Update:** those 18 ids are now identified as *mirror strokes* (`r+1` of
+a real stroke; `mirroring` is on session-wide) — the temporal constructor needs
+them present to close patches, so they are not phantoms to drop but real boundary
+participants. See CHANGELOG (temporal constructor).
 
 ## "The walker is the parity bottleneck" — superseded
 
