@@ -4,6 +4,33 @@
 234/234 — and the verifier-stand-in gap — the frame-budget ladder now drives
 real patches.)
 
+## Detection parity: Lean port vs C++ vs upstream (the core verification)
+
+The three pipelines must agree on *which patches the algorithm detects*, but
+currently report wildly different counts on `hat.json`: C++ `find_cycles` marks
+**208** `foundByAlgo=true`, the Lean `findCyclesPort` reports a batch **32**
+(docs figure), and the upstream auto path produced those 208. The 208 (not 234)
+is the target: `foundByAlgo = !userCreated` splits the patches into **208**
+auto-detected (segment+node angular walk) and **26** manual (input-position
+walk). See `meta/verification.jsonld` for provenance.
+
+Decisive next levers, in order:
+
+1. **Pin the C++ ground truth.** Once the Godot module builds, run
+   `CassieSketchGraph::find_cycles()` on `hat.json` and confirm it reproduces the
+   208 `foundByAlgo=true` patch boundaries — turning 208 into an empirical
+   reference, not just a recorded field.
+2. **Get the Lean port's live number.** Build/run
+   `CassieAvbd.CycleDetect.findCyclesPort` on the same strokes for the real
+   current figure (the 32 is only the docs), and diff per-patch against the C++
+   set keyed on the sorted `strokesID` signature.
+3. **Chase the normal-seeding divergence.** C++ `find_cycles` seeds one global
+   PCA plane normal reused at every node; upstream `CycleDetection.cs` uses
+   per-node `Normal` plus the `IsSharp` / `GetInPlane` / `ShouldReverse`
+   machinery, which the Lean port mirrors from the C++ simplification. This is
+   the most probable cause of the parity gap — restore per-node normals and
+   re-measure.
+
 ## Boundary membership is replayed, not geometrically reconstructed
 
 The constructor proves each patch's recorded `strokesID` are *all live* at its
