@@ -1,6 +1,6 @@
 # Open Gaps
 
-Ranked by impact on the canonical temporal-incidence score (**234/234 — closed**).
+Ranked by impact on system correctness. The canonical temporal-incidence score is **234/234 — closed**.
 
 ---
 
@@ -14,27 +14,28 @@ progression: 165 → 177 → 222 → 234.
 
 ---
 
-## 2. Delete semantics — Timeline.lean does not cascade
+## 2. Determinism — verifier output is not yet proven bit-for-bit reproducible
 
-`Timeline.lean` tracks stroke adds and removes but does not implement full
-delete semantics.
+`Timeline.replay` and `formsCycle` are deterministic in intent but two sources
+of non-determinism are unverified:
 
-**Type-2 StrokeDelete** must cascade: upstream `GraphUpdate`
-(`DrawingCanvas.cs:393-408`) + `DeleteCycles` (`Graph.cs:646-658`) destroy
-every patch whose `strokesID` contains the removed stroke. `Timeline.lean`
-removes the stroke (and mirror r+1) but does not cascade-delete those patches.
-37 of 59 deleted stroke ids appear in some patch's `strokesID`.
+- **Float ordering in `nearPoly` / `ptSegDist2`.** The eps² threshold (1e-4)
+  is applied to IEEE 754 double results. On different hardware or with different
+  compiler optimisation levels, fused-multiply-add contraction can shift the
+  last bit of a squared-distance result across the threshold, silently changing
+  which junctions are found and therefore which patches close a cycle.
+- **`hamiltonBt` neighbor-visit order.** The adjacency lists in `adj` are built
+  by iterating boundary indices `a < b`, so the order is deterministic given a
+  fixed input array. But if `boundary[pid]` ever contains duplicates or the JSON
+  parser returns fields in a different order across platforms, the adjacency list
+  changes and the backtracking finds a different (or no) Hamiltonian cycle.
 
-**Type-4 SurfaceDelete** removes one patch: upstream `Graph.ManualDeletePatch`
-(`Graph.cs:249-267`) removes only that cycle, strokes untouched. `Timeline.lean`
-does not track live patches, so the inverse step is absent.
-
-The create-frame assertion (234/234) is unaffected — patches close before their
-boundary is erased — but end-state correctness requires both cascades.
-Stroke-id and patch-id spaces collide numerically (stroke 113 ≠ patch 113);
-type-2 cascade matches on stroke id within `strokesID`, type-4 on patch id.
-
----
+Neither has caused a discrepancy on the one tested platform (x86-64 Linux,
+Lean v4.30.0, no `-O`), but neither is guaranteed. The decisive lever: replace
+the floating-point eps gate with exact rational arithmetic for the `vdist2 <
+eps2` comparisons (or prove that the IEEE 754 result is monotone in the
+relevant range), and add a property test that runs the verifier twice (from
+different `Array` construction paths) and asserts identical output.
 
 ## 3. Fixture not regenerable from the timeline
 

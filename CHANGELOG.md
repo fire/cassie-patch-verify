@@ -60,7 +60,7 @@
   — the arrangement is less under-resolved but not yet complete (next: feed real
   cubic data / finer tessellation, and use the per-node-normal port walk).
 
-## Delete semantics (Timeline.lean)
+## Delete semantics (Timeline.lean) — CLOSED, end-state 113/234 live
 
 InteractionType enum is pinned (`StudyUtils.cs:46`): 0 Idle, 1 StrokeAdd,
 2 StrokeDelete, 3 SurfaceAdd, 4 SurfaceDelete, 5 CanvasTransform.
@@ -79,6 +79,12 @@ bounds 33 patches).
 Stroke-id and patch-id spaces collide numerically (stroke 113 ≠ patch 113).
 Type-2 cascade matches on stroke id within `strokesID`; type-4 matches on
 patch id.
+
+`Timeline.replay` implements both: type-4 clears `livePatch[pid]`; type-2
+removes the stroke + mirror from `live` then clears `livePatch[pid]` for every
+patch whose recorded boundary contains that stroke id. End-state:
+**113/234 patches live** (234 created, 6 direct type-4 deletes + 115 cascade).
+Create-frame assertions unaffected (234/234 membership, 234/234 incidence).
 
 ## Upstream ground truth (V-Sekai CASSIE Unity C#)
 
