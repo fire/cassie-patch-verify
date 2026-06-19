@@ -10,10 +10,10 @@ The three pipelines must agree on *which patches the algorithm detects* on
 `hat.json`. Targets: `foundByAlgo = !userCreated` splits patches into **208**
 auto-detected (segment+node angular walk) and **26** manual (input-position
 walk); 208 is the parity target. **Live Lean number is 29/234** (ran the
-prebuilt `cycle_sweep` binary in `cassie-climb/.../lean`; the docs' "32" was
+prebuilt `cycle_sweep` binary in `cassie-lean/.../lean`; the docs' "32" was
 stale — grand union: 168 unique cycle-sets, 29 exact, best per-config 26).
 
-Research findings (file:line in the cassie-climb Lean tree unless noted):
+Research findings (file:line in the cassie-lean Lean tree unless noted):
 
 - **The per-node-normal machinery already exists in Lean** but isn't the one
   being measured. `Walk.lean:102 findCycles` is the legacy walk that reuses one
