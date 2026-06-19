@@ -1,0 +1,121 @@
+% cassie-patch-verify — bibliography
+% All works this project depends on or verifies.
+
+% ── Core paper ───────────────────────────────────────────────────────────────
+
+@InProceedings{YASBS21,
+  author    = {Yu, Emilie and Arora, Rahul and Stanko, Tibor and
+               B{\ae}rentzen, J. Andreas and Singh, Karan and Bousseau, Adrien},
+  title     = {{CASSIE}: Curve and Surface Sketching in Immersive Environments},
+  booktitle = {ACM Conference on Human Factors in Computing Systems (CHI)},
+  year      = {2021},
+  url       = {http://www-sop.inria.fr/reves/Basilic/2021/YASBS21},
+}
+
+% ── Dataset ───────────────────────────────────────────────────────────────────
+
+@misc{cassie-data,
+  author       = {Yu, Emilie and Arora, Rahul and Stanko, Tibor and
+                  B{\ae}rentzen, J. Andreas and Singh, Karan and Bousseau, Adrien},
+  title        = {{CASSIE} {VR} Sketch Dataset},
+  year         = {2021},
+  howpublished = {\url{https://github.com/V-Sekai/cassie-data}},
+  note         = {41 sessions with patch ground truth used for train/test split},
+}
+
+% ── Triangulation ─────────────────────────────────────────────────────────────
+
+@InProceedings{ZouEtAl13,
+  author    = {Zou, Ming and Ju, Tao and Carr, Nathan},
+  title     = {An Algorithm for Triangulating Multiple {3D} Polygons},
+  booktitle = {Computer Graphics Forum (Proceedings of SGP)},
+  volume    = {32},
+  number    = {5},
+  pages     = {157--166},
+  year      = {2013},
+  url       = {https://www.cse.wustl.edu/~taoju/zoum/projects/TriMultPoly/index.html},
+  note      = {DMWT — Discrete Minimum Weight Triangulation; vendored in
+               \texttt{vendor/cassie-triangulation/}},
+}
+
+% ── Geometry library ──────────────────────────────────────────────────────────
+
+@misc{geogram,
+  author       = {L{\'e}vy, Bruno and others},
+  title        = {Geogram: a programming library of geometric algorithms},
+  howpublished = {\url{https://github.com/BrunoLevy/geogram}},
+  note         = {Vendored subset used for 3D Delaunay (BDEL) inside DMWT;
+                  patched throw→abort for \texttt{-fno-exceptions} compat},
+}
+
+% ── Surface remeshing ─────────────────────────────────────────────────────────
+
+@misc{pmp-library,
+  author       = {Botsch, Mario and Kobbelt, Leif and Bommes, David and
+                  Vetter, Rhaleb and others},
+  title        = {{PMP} Library --- Polygon Mesh Processing},
+  howpublished = {\url{https://www.pmp-library.org}},
+  note         = {Vendored subset used for \texttt{pmp::uniform\_remeshing}
+                  in \texttt{vendor/pmp/}},
+}
+
+% ── Polyline simplification ───────────────────────────────────────────────────
+
+@Article{RDP73,
+  author  = {Ramer, Urs},
+  title   = {An iterative procedure for the polygonal approximation of plane curves},
+  journal = {Computer Graphics and Image Processing},
+  volume  = {1},
+  number  = {3},
+  pages   = {244--256},
+  year    = {1972},
+}
+
+@Article{DP73,
+  author  = {Douglas, David H. and Peucker, Thomas K.},
+  title   = {Algorithms for the reduction of the number of points required
+             to represent a digitized line or its caricature},
+  journal = {Cartographica},
+  volume  = {10},
+  number  = {2},
+  pages   = {112--122},
+  year    = {1973},
+}
+
+% ── Shader/kernel language ────────────────────────────────────────────────────
+
+@misc{slang,
+  author       = {He, Yong and Kaplanyan, Anton S. and others},
+  title        = {Slang Shading Language},
+  howpublished = {\url{https://shader-slang.com}},
+  note         = {CPU-emitted \texttt{curve\_rdp.cpu.cpp} kernel vendored in
+                  \texttt{vendor/curve\_rdp/}; prelude in
+                  \texttt{vendor/slang-prelude/}},
+}
+
+@misc{lean-slang,
+  author       = {Lee, K. S. Ernest (iFire)},
+  title        = {lean-slang: {Lean} 4 $\to$ {Slang} shader codegen},
+  year         = {2026},
+  howpublished = {\url{https://github.com/V-Sekai-fire/lean-slang}},
+  note         = {v0.0.5; vendored in \texttt{vendor/lean-slang/}},
+}
+
+% ── Proof assistant ───────────────────────────────────────────────────────────
+
+@misc{lean4,
+  author       = {de Moura, Leonardo and Ullrich, Sebastian},
+  title        = {The {Lean} 4 Theorem Prover and Programming Language},
+  howpublished = {\url{https://leanprover.github.io}},
+  year         = {2021},
+}
+
+% ── Witness DAG ───────────────────────────────────────────────────────────────
+
+@misc{plausible-witness-dag,
+  author       = {Lee, K. S. Ernest (iFire)},
+  title        = {plausible-witness-dag},
+  howpublished = {\url{https://github.com/fire/plausible-witness-dag}},
+  note         = {Frame-budget ladder and witness search used in
+                  \texttt{Timeline.lean}},
+}
