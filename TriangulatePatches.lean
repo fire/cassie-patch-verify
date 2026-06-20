@@ -171,6 +171,18 @@ def walkBoundary (B : Array Nat) (inc : Array StrokeIncidence)
     let entryIdx : Nat := match entryXn with | some xn => closestIdx poly xn | none => endpointEntry
     let exitIdx  : Nat := match exitXn  with | some xn => closestIdx poly xn | none => endpointExit
 
+    -- Special case: prevSi==nextSi means the boundary degenerates to an effective
+    -- 2-stroke cycle stored as [A,A,B,B] (or similar repeated pattern).  Both xnode
+    -- and endpoint searches use the same reference poly → entry==exit always.
+    -- Force full-poly emission in the entry-endpoint direction instead.
+    if prevSi == nextSi && entryIdx == exitIdx then
+      let fwd := endpointEntry == 0
+      let pts := if fwd then poly else poly.reverse
+      for pi in [:pts.size - 1] do
+        let p := pts.getD pi (0.0, 0.0, 0.0)
+        out := out.push p.1; out := out.push p.2.1; out := out.push p.2.2
+      continue
+
     -- Emit the sub-segment from entryIdx to exitIdx (exclusive of exitIdx,
     -- which is shared with the next stroke).
     if entryIdx ≤ exitIdx then
@@ -342,6 +354,12 @@ private def runCDT (bd : Array Float) : IO (Array Float × Array Nat) := do
     different patches). Returns `(verts_flat_xyz, tris_flat_abc)` or empty arrays. -/
 def triangulatePatch (B : Array Nat) (inc : Array StrokeIncidence)
     (polys : Array (Array Vec3)) (xnodes : Array (Array Vec3)) : IO (Array Float × Array Nat) := do
+  -- Pre-pass: if all boundary entries are the same stroke ID, treat as a single
+  -- closed-loop stroke (k=1).  Occurs when [A,A] or [A,A,A] are recorded.
+  if B.size > 1 && B.all (· == B.getD 0 0) then
+    let bd0 := walkBoundary #[B.getD 0 0] inc polys xnodes
+    let (v0, t0) ← runCDT bd0
+    if v0.size > 0 then return (v0, t0)
   -- Pass 1: xnode-to-poly (stable baseline)
   let bd1 := walkBoundary B inc polys xnodes false
   let (v1, t1) ← runCDT bd1
