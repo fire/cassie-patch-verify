@@ -110,26 +110,29 @@ lens boundary, and the second stroke traverses in the opposite direction from th
 first.
 
 **Group B — k=4+ patches (44 patches):** geogram reports "bad input" or
-"no solution." The polyline is non-empty but self-intersects because `strokeExit`
-picks the wrong end when a stroke belongs to multiple overlapping patches and both
-its ends sit near different junction candidates. Two candidate paths exist:
+"no solution." The polyline is non-empty but self-intersects because the `exitPt`
+direction check (see `walkBoundary`, `TriangulatePatches.lean:44`) picks the wrong
+end when a stroke belongs to multiple overlapping patches and both its ends sit near
+different junction candidates. Two candidate paths exist:
 (a) threading the previous stroke's actual exit point through the loop (chaining),
 which a naive implementation worsens to 150/234 by propagating bootstrap errors
 — see TOMBSTONES; (b) seeding direction from `appliedPositionConstraints`
 junction positions already present in `hat.json`.
 
-## 6. Pipeline end-to-end — unexercised against real data
+## 6. Pipeline end-to-end — no recorded run against real data
 
 The hexagonal ports-and-adapters `Pipeline/` library (Core/Ports/Adapters)
-builds and passes 12 plausible property tests, but no run against real
-`inputSamples` exists. `RunPipeline` (`run-pipeline` exe) wires G1 sections →
-graph → cycle detection → CDT2d; the `JsonStroke` adapter and `Graph`/
-`CycleDetect` integration are untested against `hat.json` or any training session.
+builds and passes 12 plausible property tests. `RunPipeline.lean` fully wires the
+pipeline: `jsonStrokeSource` → `samplestoSections` (RDP + G1) → `buildGraph` →
+`detectCycles` → `verifySession` against `allCreatedPatches`. The `run-pipeline`
+executable compiles and is declared in `lakefile.lean`. The gap is that no
+successful run against `hat.json` or any training session has been recorded, so
+the adapter layer and graph/cycle integration have no observed output to verify.
 
 ## 7. VR frame-budget validation
 
-`walkSteps` in `Timeline.lean:135-138` is a frame count, not a cost in
-microseconds. No mapping from ladder rung to real VR-frame headroom exists.
+`walkSteps` in `frameLadder` (`Timeline.lean:367-370`) is a frame count, not a
+cost in microseconds. No mapping from ladder rung to real VR-frame headroom exists.
 
 Real per-stage timing lives in C++ (`test_cassie_pipeline_bench.h`:
 `Time::get_ticks_usec()` around populate/find_cycles/sample_boundary/
