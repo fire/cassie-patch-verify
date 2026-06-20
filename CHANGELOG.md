@@ -55,6 +55,16 @@
    pass-2 recovers the 16 k=4 patches (45–86) where multi-junction strokes were
    snapping to the wrong xnode. Remaining 3 failures: 120 (k=5), 178, 182 (k=10).
 
+6. **Isotropic remeshing with fork-based hang guard (231/234, post-DMWT):**
+   `refine_patch` now runs `pmp::uniform_remeshing` (targetEdgeLength=0.02,
+   nb_iter=3, use_projection=true) matching the production C# SurfaceManager
+   pipeline. Near-degenerate DMWT outputs (fan-triangulated planar patches)
+   cause pmp's kd-tree projection to loop; the hang is isolated via `fork()`:
+   child sends mesh to parent via pipe, parent enforces a 5-second timeout and
+   falls back to raw DMWT on expiry. RDP tolerance fixed at 0.005 (matches
+   original value; a later commit had incorrectly tightened it to 0.002,
+   which caused 4 patches to exceed DMWT's BADEDGE_LIMIT=30).
+
 **Hexagonal Pipeline library built and property-tested:**
 `Pipeline/Core` (Vec3, Bezier, RDP, G1Sections, Graph, GraphBuilder, CycleDetect),
 `Pipeline/Ports` (StrokeSource, PatchSink, TriangulationPort),

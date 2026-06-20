@@ -181,7 +181,7 @@ private def runCDT (bd : Array Float) : IO (Array Float × Array Nat) := do
   let n := bd.size / 3
   if n < 3 then return (#[], #[])
   let fa := FloatArray.mk bd
-  let dh ← delaunayFromBoundary n.toUSize fa 0.0
+  let dh ← delaunayFromBoundary n.toUSize fa 0.02
   let nv ← nVertices dh
   let nt ← nTriangles dh
   if nv.toNat == 0 || nt.toNat == 0 then

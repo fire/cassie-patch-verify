@@ -120,7 +120,7 @@ LEAN_EXPORT lean_obj_res cassie_geogram_delaunay_from_boundary(
             }
             const uint32_t n_in = static_cast<uint32_t>(kept.size());
             std::vector<uint32_t> keep_mask(n_in, 0u);
-            const float rdp_tol = 0.002f;
+            const float rdp_tol = 0.005f;
             uint32_t n_kept = cassie_slang_dispatch::curve_rdp_reduce(
                 fpts.data(), n_in, rdp_tol, keep_mask.data());
             if (n_kept >= 3 && n_kept < n_in) {
