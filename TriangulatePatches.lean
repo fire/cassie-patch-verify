@@ -116,7 +116,19 @@ def walkBoundary (B : Array Nat) (inc : Array StrokeIncidence)
     let poly   := polys.getD si #[]
     let xns    := xnodes.getD si #[]
     let prevSi := B.getD ((oi + k - 1) % k) 0
-    let nextSi := B.getD ((oi + 1) % k) 0
+
+    -- Consecutive run: if the previous slot also has stroke si, we are not the
+    -- first occurrence in the run — skip (the first occurrence handles the whole run).
+    if si == prevSi then continue
+
+    -- Scan forward past any consecutive run of si to find the stroke that actually
+    -- follows the run. Handles runs of length 1, 2, 3, …
+    let nextSi : Nat := Id.run do
+      let mut j := (oi + 1) % k
+      for _ in [:k] do
+        if B.getD j 0 != si then return B.getD j 0
+        j := (j + 1) % k
+      return si  -- entire B is one stroke (degenerate, handled by k=1 branch above)
     let prevPoly := polys.getD prevSi #[]
     let nextPoly := polys.getD nextSi #[]
 
@@ -175,6 +187,79 @@ def walkBoundary (B : Array Nat) (inc : Array StrokeIncidence)
 
   return out
 
+/-- Build the boundary for a k=2 lens patch with the direction of stroke 0 flipped.
+    Called as pass-4a when the standard direction fails CDT. -/
+private def walkBoundaryK2Flip (B : Array Nat) (polys : Array (Array Vec3)) : Array Float := Id.run do
+  if B.size != 2 then return #[]
+  let s0 := B.getD 0 0; let s1 := B.getD 1 0
+  let poly0 := polys.getD s0 #[]; let poly1 := polys.getD s1 #[]
+  if poly0.isEmpty || poly1.isEmpty then return #[]
+  let vd2 (a b : Vec3) : Float :=
+    let dx := a.1 - b.1; let dy := a.2.1 - b.2.1; let dz := a.2.2 - b.2.2
+    dx*dx + dy*dy + dz*dz
+  let p00 := poly0.getD 0 (0.0,0.0,0.0)
+  let p0L := poly0.getD (poly0.size - 1) (0.0,0.0,0.0)
+  let q10 := poly1.getD 0 (0.0,0.0,0.0)
+  let q1L := poly1.getD (poly1.size - 1) (0.0,0.0,0.0)
+  let d0near := min (vd2 p00 q10) (vd2 p00 q1L)
+  let dLnear := min (vd2 p0L q10) (vd2 p0L q1L)
+  -- Opposite of pass-1's (dLnear ≤ d0near) → flips direction in all cases
+  let fwd0 := d0near < dLnear
+  let exitPt0 : Vec3 := if fwd0 then p0L else p00
+  let mut out : Array Float := #[]
+  let pts0 := if fwd0 then poly0 else poly0.reverse
+  for pi in [:pts0.size - 1] do
+    let p := pts0.getD pi (0.0,0.0,0.0)
+    out := out.push p.1; out := out.push p.2.1; out := out.push p.2.2
+  let fwd1 := vd2 q10 exitPt0 ≤ vd2 q1L exitPt0
+  let pts1 := if fwd1 then poly1 else poly1.reverse
+  for pi in [:pts1.size - 1] do
+    let p := pts1.getD pi (0.0,0.0,0.0)
+    out := out.push p.1; out := out.push p.2.1; out := out.push p.2.2
+  return out
+
+/-- Build a k-point junction polygon: for each stroke in B, emit its entry junction
+    (where it meets the previous stroke). Uses xnodes if available; falls back to the
+    endpoint closest to the previous poly. This is pass-4b for k≥3 patches where
+    xnode-based clipping collapses to 0 points (entry==exit for all strokes). -/
+private def boundaryFromJunctions (B : Array Nat)
+    (polys : Array (Array Vec3)) (xnodes : Array (Array Vec3)) : Array Float := Id.run do
+  let k := B.size
+  if k < 3 then return #[]
+  let vd2 (a b : Vec3) : Float :=
+    let dx := a.1 - b.1; let dy := a.2.1 - b.2.1; let dz := a.2.2 - b.2.2
+    dx*dx + dy*dy + dz*dz
+  let mut out : Array Float := #[]
+  for oi in [:k] do
+    let si    := B.getD oi 0
+    let prevSi := B.getD ((oi + k - 1) % k) 0
+    if si == prevSi then continue  -- skip consecutive duplicate (same as walkBoundary)
+    let xns     := xnodes.getD si #[]
+    let prevXns := xnodes.getD prevSi #[]
+    let poly     := polys.getD si #[]
+    let prevPoly := polys.getD prevSi #[]
+    let junctionPt : Vec3 :=
+      if not xns.isEmpty && not prevXns.isEmpty then
+        match closestXnodeToXnodes xns prevXns with
+        | some xn => xn
+        | none    => xns[0]!
+      else if not xns.isEmpty then
+        match closestXnodeToPoly xns prevPoly with
+        | some xn => xn
+        | none    => xns[0]!
+      else
+        let p0 := poly.getD 0 (0,0,0)
+        let pL := poly.getD (poly.size - 1) (0,0,0)
+        if prevPoly.isEmpty then p0
+        else
+          let pp0 := prevPoly.getD 0 (0,0,0)
+          let ppL := prevPoly.getD (prevPoly.size - 1) (0,0,0)
+          let d0 := min (vd2 p0 pp0) (vd2 p0 ppL)
+          let dL := min (vd2 pL pp0) (vd2 pL ppL)
+          if d0 ≤ dL then p0 else pL
+    out := out.push junctionPt.1; out := out.push junctionPt.2.1; out := out.push junctionPt.2.2
+  return out
+
 /-- Run geogram CDT2d on a flat xyz boundary and decode results.
     Returns empty arrays on failure. -/
 private def runCDT (bd : Array Float) : IO (Array Float × Array Nat) := do
@@ -219,7 +304,24 @@ def triangulatePatch (B : Array Nat) (inc : Array StrokeIncidence)
   -- Pass 2: xnode-to-xnode (disambiguation for multi-junction strokes)
   let bd2 := walkBoundary B inc polys xnodes true
   let (v2, t2) ← runCDT bd2
-  return (v2, t2)
+  if v2.size > 0 then return (v2, t2)
+  -- Pass 3: pure endpoint-distance, no xnodes — fallback when all xnodes collapse.
+  let noXnodes := xnodes.map (fun _ => (#[] : Array Vec3))
+  let bd3 := walkBoundary B inc polys noXnodes false
+  if bd3.size / 3 >= 3 then
+    let (v3, t3) ← runCDT bd3
+    if v3.size > 0 then return (v3, t3)
+  -- Pass 4a (k=2): try opposite direction — handles self-intersecting lens.
+  -- Pass 4b (k≥3): junction polygon (k points, one per stroke at its entry junction).
+  if B.size == 2 then
+    let bd4 := walkBoundaryK2Flip B polys
+    let (v4, t4) ← runCDT bd4
+    return (v4, t4)
+  let bd4 := boundaryFromJunctions B polys xnodes
+  if bd4.size / 3 >= 3 then
+    let (v4, t4) ← runCDT bd4
+    return (v4, t4)
+  return (#[], #[])
 
 /-- Build a JSON number from a Float (finite values only). -/
 def jf (x : Float) : Json :=
@@ -231,8 +333,11 @@ def jf (x : Float) : Json :=
 
 end CassieTriangulate
 
-def main : IO Unit := do
-  let (_, boundary, inc, polys, xnodes) ← CassieTimeline.loadSession
+def triangulateSession (sessionPath : System.FilePath) : IO Unit := do
+  let outPath : System.FilePath :=
+    let s := sessionPath.toString
+    if s.endsWith ".json" then s.dropRight 5 ++ "_mesh.json" else s ++ "_mesh.json"
+  let (_, boundary, inc, polys, xnodes) ← CassieTimeline.loadSession sessionPath
   let mut patchJsons : Array Json := #[]
   let mut nTriangulated := 0
   for pid in [:boundary.size] do
@@ -240,8 +345,10 @@ def main : IO Unit := do
     if B.size == 0 then continue
     let (verts, tris) ← CassieTriangulate.triangulatePatch B inc polys xnodes
     if verts.size == 0 then do
-      let bd := CassieTriangulate.walkBoundary B inc polys xnodes
-      IO.eprintln s!"FAIL patch {pid} k={B.size} bdPts={bd.size / 3}"
+      let bd1 := CassieTriangulate.walkBoundary B inc polys xnodes
+      let noXn := xnodes.map (fun _ => (#[] : Array Vec3))
+      let bd3 := CassieTriangulate.walkBoundary B inc polys noXn
+      IO.eprintln s!"FAIL patch {pid} k={B.size} bdPts={bd1.size / 3} bd3pts={bd3.size / 3}"
       continue
     nTriangulated := nTriangulated + 1
     let nv := verts.size / 3
@@ -256,5 +363,10 @@ def main : IO Unit := do
         Json.num ⟨tris[3*i+1]!, 0⟩, Json.num ⟨tris[3*i+2]!, 0⟩])
     patchJsons := patchJsons.push (Json.mkObj [("id", Json.num ⟨pid, 0⟩),
       ("verts", Json.arr vertsArr), ("tris", Json.arr trisArr)])
-  IO.FS.writeFile "data/patches_mesh.json" (toString (Json.mkObj [("patches", Json.arr patchJsons)]))
-  IO.println s!"triangulated {nTriangulated}/{boundary.size} patches → data/patches_mesh.json"
+  IO.FS.writeFile outPath (toString (Json.mkObj [("patches", Json.arr patchJsons)]))
+  IO.println s!"{sessionPath}: {nTriangulated}/{boundary.size} → {outPath}"
+
+def main (args : List String) : IO Unit := do
+  let paths := if args.isEmpty then ["data/hat.json"] else args
+  for p in paths do
+    triangulateSession p
