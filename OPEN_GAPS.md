@@ -34,29 +34,25 @@ oracle and C++ vertex sets). The lean-slang AST (`LeanSlang/AST.lean`) has no
 statement (maps to SPIR-V `NoContraction`) is already present, which is the
 correct foundation for numerically stable distance computation.
 
-### B. Boundary triangulation — 186/234 (oracle incomplete)
+### B. Boundary triangulation — 215/234 (oracle incomplete)
 
 `TriangulatePatches` walks each patch's recorded `strokesID` in order (CASSIE
-writes them in cycle order), determines per-stroke direction by comparing endpoint
-distances, emits a flat xyz polyline, then calls geogram CDT2d. The score is
-**186/234**; the 48 failures mean those 48 patches have no reference mesh to diff
-against C++, so C++ bugs in those patches are invisible to the oracle.
+writes them in cycle order), clips each stroke to its junction sub-segment using
+recorded `appliedPositionConstraints` (`isIntersection`) positions from `hat.json`
+(`xnodes`), then calls geogram CDT2d. The score is **215/234**; the 19 failures
+mean those patches have no reference mesh to diff against C++.
 
-**Group A — k=2 lens patches (patches 0, 1, 2, 93):** both strokes share the same
-two endpoint positions (axis of symmetry x≈0.125). The distance comparison ties at
-0 for both ends simultaneously, so both strokes emit in the same direction,
-producing a figure-8 self-intersection that CDT2d rejects. The missing piece is a
-tie-breaking rule: a symmetric tie identifies a lens boundary, and the second
-stroke traverses opposite to the first.
+**k=2 patches:** handled with endpoint-distance direction (full-stroke emission).
+k=2 patches correctly triangulate because they form simple two-arc closed curves.
 
-**Group B — k=4+ patches (44 patches):** geogram reports "bad input" or "no
-solution." The polyline self-intersects because the `exitPt` direction check
-(`walkBoundary`, `TriangulatePatches.lean:44`) picks the wrong end when a stroke
-belongs to multiple overlapping patches and both ends sit near different junction
-candidates. Two candidate paths exist: (a) threading the previous stroke's actual
-exit point through the loop (chaining), which a naive implementation worsens to
-150/234 by propagating bootstrap errors — see TOMBSTONES; (b) seeding direction
-from `appliedPositionConstraints` junction positions already present in `hat.json`.
+**Remaining 19 failures (k=4+):** geogram reports "bad input" or "no solution."
+The patches: 45, 46, 49, 50, 57, 58, 61, 62, 69, 70, 73, 74, 81, 82, 85, 86
+(k=4, bdPts=80–96), 120 (k=5, bdPts=80), 178, 182 (k=10, bdPts=128). The xnode
+clipping reduces bdPts vs. the full-poly approach but the path still
+self-intersects. Two likely causes: (a) the closest-xnode heuristic snaps to the
+wrong junction when a stroke has multiple xnodes from different crossing patches;
+(b) the polyline sub-segment still overshoots the true junction position, leaving a
+kink at the junction.
 
 ### C. Mesh → inventory item — deferred pending OpenUSD readiness
 

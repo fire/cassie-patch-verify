@@ -18,9 +18,9 @@
   Lean→Slang→Vulkan numeric solve, (3) this plausible witness oracle for the
   combinatorial detection.
 
-## Boundary triangulation (TriangulatePatches) — 186/234
+## Boundary triangulation (TriangulatePatches) — 215/234
 
-`walkBoundary` was rewritten three times before settling on the current approach:
+`walkBoundary` was rewritten four times:
 
 1. **allNodes + Hamiltonian trace (153/234):** original code used `sharedN` over
    `allNodes` (endpoints ∪ hosted nodes) to build stroke adjacency, then greedy
@@ -32,11 +32,21 @@
    to eliminate false edges. Too strict: T-junctions (one endpoint meets another
    stroke's interior) were no longer detected. Reverted. See TOMBSTONES.
 
-3. **Geometry-based direction, recorded cycle order (186/234, current):**
+3. **Geometry-based direction, recorded cycle order (150/234):**
    CASSIE records `strokesID` in cycle order — no reordering needed. Direction
-   per stroke is determined by `strokeExit`: which endpoint of stroke i is closer
-   to an endpoint of the next stroke i+1. Eliminated false-adjacency and recovered
-   previously broken 4-stroke patches. Remaining 48 failures tracked in OPEN_GAPS §5.
+   per stroke is determined by comparing endpoint distances to the next stroke's
+   endpoints. Eliminated false-adjacency. Remaining 84 failures: strokes spanning
+   multiple overlapping patches emitted full polylines → self-intersection.
+
+4. **Junction-based sub-segment clipping (215/234, current):**
+   `loadSession` now returns `xnodes` (5-tuple). For each stroke in a boundary
+   (k≥3), `walkBoundary` looks up `xnodes[si]` — the recorded
+   `appliedPositionConstraints` (`isIntersection`) world positions — and finds:
+   (a) the xnode closest to the previous stroke's polyline → entry index;
+   (b) the xnode closest to the next stroke's polyline → exit index.
+   Only the sub-segment `poly[entryIdx..exitIdx)` is emitted. k=2 patches use
+   the full-stroke endpoint-distance approach (prev/next are the same stroke;
+   xnode search collapses). Remaining 19 failures tracked in OPEN_GAPS §B.
 
 **Hexagonal Pipeline library built and property-tested:**
 `Pipeline/Core` (Vec3, Bezier, RDP, G1Sections, Graph, GraphBuilder, CycleDetect),
