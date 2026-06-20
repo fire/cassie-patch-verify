@@ -230,6 +230,58 @@ private def walkBoundaryK2Flip (B : Array Nat) (polys : Array (Array Vec3)) : Ar
     out := out.push p.1; out := out.push p.2.1; out := out.push p.2.2
   return out
 
+/-- Build boundary for a k=2 patch where one stroke is a closed loop.
+    When poly0 is a closed loop (p0 ≈ pL) and poly1 is a chord starting at that
+    junction, the standard 4-endpoint and direction-flip passes all degenerate
+    (p00 = p0L = chord start).  Instead we clip the loop to the arc from the
+    shared junction to the closest point to the chord's far endpoint, then pair
+    with the chord.  Returns two candidates (one per arc side). -/
+private def walkBoundaryK2Arc (B : Array Nat) (polys : Array (Array Vec3)) : Array (Array Float) := Id.run do
+  if B.size != 2 then return #[]
+  let vd2 (a b : Vec3) : Float :=
+    let dx := a.1 - b.1; let dy := a.2.1 - b.2.1; let dz := a.2.2 - b.2.2
+    dx*dx + dy*dy + dz*dz
+  let emit (ps : Array Vec3) (excludeLast : Bool) : Array Float := Id.run do
+    let mut out : Array Float := #[]
+    let lim := if excludeLast && ps.size > 0 then ps.size - 1 else ps.size
+    for i in [:lim] do
+      let p := ps.getD i (0,0,0)
+      out := out.push p.1; out := out.push p.2.1; out := out.push p.2.2
+    return out
+  -- Try with loopSid as the closed loop, chordSid as the chord
+  let tryWith (loopSid chordSid : Nat) : Array (Array Float) := Id.run do
+    let loopPoly := polys.getD loopSid #[]
+    let chordPoly := polys.getD chordSid #[]
+    if loopPoly.size < 4 || chordPoly.size < 2 then return #[]
+    let lp0 := loopPoly.getD 0 (0,0,0)
+    let lpL := loopPoly.getD (loopPoly.size - 1) (0,0,0)
+    if vd2 lp0 lpL > 1.0e-5 then return #[]  -- not a closed loop
+    -- Identify the chord's far endpoint (the one NOT at the junction)
+    let cp0 := chordPoly.getD 0 (0,0,0)
+    let cpL := chordPoly.getD (chordPoly.size - 1) (0,0,0)
+    let chordFwd := vd2 lp0 cp0 ≤ vd2 lp0 cpL  -- cp0 is the junction end if true
+    let chordFar  := if chordFwd then cpL else cp0
+    -- Find the loop index closest to the chord's far endpoint
+    let midIdx := closestIdx loopPoly chordFar
+    if midIdx == 0 || midIdx >= loopPoly.size - 1 then return #[]
+    -- Arc A: loop[0..midIdx) + chord reversed (far→junction)
+    let arcA := loopPoly.extract 0 midIdx
+    let chordR := if chordFwd then chordPoly.reverse else chordPoly
+    let bdA := (emit arcA false).append (emit chordR true)
+    -- Arc B: loop[midIdx..size-1) + chord forward (junction→far)
+    let arcBraw := loopPoly.extract midIdx (loopPoly.size - 1)
+    let arcB := arcBraw  -- goes from midIdx to end of loop (near junction)
+    let chordF := if chordFwd then chordPoly else chordPoly.reverse
+    let bdB := (emit arcB false).append (emit chordF true)
+    let mut result : Array (Array Float) := #[]
+    if bdA.size / 3 >= 3 then result := result.push bdA
+    if bdB.size / 3 >= 3 then result := result.push bdB
+    return result
+  let mut result : Array (Array Float) := #[]
+  result := result.append (tryWith (B.getD 0 0) (B.getD 1 0))
+  result := result.append (tryWith (B.getD 1 0) (B.getD 0 0))
+  return result
+
 /-- Build a k-point junction polygon: for each stroke in B, emit its entry junction
     (where it meets the previous stroke). Uses xnodes if available; falls back to the
     endpoint closest to the previous poly. This is pass-4b for k≥3 patches where
@@ -392,6 +444,13 @@ def triangulatePatch (B : Array Nat) (inc : Array StrokeIncidence)
       for bd6 in [mk4 p00 q10 p0L q1L, mk4 p00 q1L p0L q10, mk4 p00 p0L q1L q10] do
         let (v6, t6) ← runCDT bd6
         if v6.size > 0 then return (v6, t6)
+    -- Pass 7 (k=2): closed-loop arc clipping — one stroke is a closed loop,
+    -- the other is a chord; clip the loop to the arc between the two junctions.
+    let bd7s := walkBoundaryK2Arc B polys
+    for bd7 in bd7s do
+      if bd7.size / 3 >= 3 then
+        let (v7, t7) ← runCDT bd7
+        if v7.size > 0 then return (v7, t7)
     return (#[], #[])
   let bd4 := boundaryFromJunctions B polys xnodes
   if bd4.size / 3 >= 3 then
