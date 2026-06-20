@@ -92,7 +92,39 @@ Research findings (file:line in the cassie-lean Lean tree unless noted):
 
 ---
 
-## 5. VR frame-budget validation
+## 5. Boundary triangulation — 186/234 (48 failing)
+
+`TriangulatePatches` walks each patch's recorded `strokesID` in order (CASSIE
+writes them in cycle order — no Hamiltonian reordering needed), determines
+per-stroke direction by comparing endpoint distances to the next stroke's
+endpoints, emits a flat xyz polyline, then calls geogram CDT2d. Current score:
+**186/234**. The 48 failures split into two groups:
+
+**Group A — k=2 lens patches (patches 0, 1, 2, 93 — real stroke + mirror pair):**
+Both strokes share the same two endpoint positions (on the axis of symmetry
+x≈0.125). The distance tie-break evaluates to 0 for both ends, so both strokes
+emit in the same direction → figure-8 self-intersection → CDT2d rejects.
+Fix: detect the symmetric tie and force the second stroke backward.
+
+**Group B — k=4+ patches (44 patches):** geogram reports "bad input" or
+"no solution." The polyline is non-empty but self-intersects because `strokeExit`
+picks the wrong end when a stroke belongs to multiple overlapping patches and
+both its ends sit near different junction candidates.
+Fix candidates: (a) thread the previous stroke's actual exit point through the
+loop (chaining), but naive chaining propagated bootstrap errors and scored
+150/234 — see TOMBSTONES; (b) seed direction from `appliedPositionConstraints`
+junction positions already recorded in `hat.json`.
+
+## 6. Pipeline end-to-end — untested
+
+The hexagonal ports-and-adapters `Pipeline/` library (Core/Ports/Adapters)
+builds and passes 12 plausible property tests, but has never been run against
+real `inputSamples`. `RunPipeline` (`run-pipeline` exe) wires G1 sections →
+graph → cycle detection → CDT2d but has not been executed on `hat.json` or any
+training session. First run will likely surface Lean 4 issues with the
+`JsonStroke` adapter and `Graph`/`CycleDetect` integration.
+
+## 7. VR frame-budget validation
 
 `walkSteps` in `Timeline.lean:135-138` is a frame count, not a cost in
 microseconds. No mapping from ladder rung to real VR-frame headroom exists.

@@ -18,6 +18,35 @@
   Lean→Slang→Vulkan numeric solve, (3) this plausible witness oracle for the
   combinatorial detection.
 
+## Boundary triangulation (TriangulatePatches) — 186/234
+
+`walkBoundary` was rewritten three times before settling on the current approach:
+
+1. **allNodes + Hamiltonian trace (153/234):** original code used `sharedN` over
+   `allNodes` (endpoints ∪ hosted nodes) to build stroke adjacency, then greedy
+   Hamiltonian path to find cycle order. Failed on 4-stroke quadrilateral patches
+   because strokes shared across overlapping patches polluted adjacency (K₄
+   instead of 4-cycle). See TOMBSTONES.
+
+2. **Endpoint-only adjacency (72/234):** replaced `allNodes` with `endpts` only
+   to eliminate false edges. Too strict: T-junctions (one endpoint meets another
+   stroke's interior) were no longer detected. Reverted. See TOMBSTONES.
+
+3. **Geometry-based direction, recorded cycle order (186/234, current):**
+   CASSIE records `strokesID` in cycle order — no reordering needed. Direction
+   per stroke is determined by `strokeExit`: which endpoint of stroke i is closer
+   to an endpoint of the next stroke i+1. Eliminated false-adjacency and recovered
+   previously broken 4-stroke patches. Remaining 48 failures tracked in OPEN_GAPS §5.
+
+**Hexagonal Pipeline library built and property-tested:**
+`Pipeline/Core` (Vec3, Bezier, RDP, G1Sections, Graph, GraphBuilder, CycleDetect),
+`Pipeline/Ports` (StrokeSource, PatchSink, TriangulationPort),
+`Pipeline/Adapters` (JsonStroke, GroundTruth, DmwtAdapter), `RunPipeline.lean`.
+12 plausible property tests pass (`PipelineTests.lean`). Key Lean 4.30 fixes:
+imports before doc-comments; `max`/`min` not `Float.max`/`Float.min`; `let mut`/
+`for` require `Id.run do`; `by` is a keyword (renamed to `b_y` in tests);
+9-variable `Testable.check` heartbeat-times-out (reduced to 6 variables).
+
 ## Detection parity (cassie-lean CycleDetect) — 29 → 50/234
 
 - **Lever 3 — clockwise minimal-face turn (48 → 50).** `findCyclesPort`'s

@@ -74,3 +74,34 @@ The comment in `CycleSweep.lean`. The witness-DAG ladder escalates `walkSteps` o
 `budgetHit` rather than enumerating everything, so density is a rung, not a wall —
 demonstrated by `cassie-patch-verify` resolving a 6-step boundary at L1 after an
 L0 budget-hit. Do not reason about "too dense to walk."
+
+## Hamiltonian trace to reorder boundary strokes — superseded
+
+`walkBoundary` used a greedy Hamiltonian path over the stroke-adjacency graph
+to find the cycle order before emitting the boundary polyline. This was wrong on
+two counts: (1) the `allNodes` adjacency caused false edges — stroke 16 appeared
+adjacent to stroke 8 via hosted nodes from other patches they share, turning the
+correct 4-cycle into K₄ and making the Hamiltonian trace fail; (2) CASSIE already
+records `strokesID` in cycle order (the angular CCW walk writes them that way), so
+no reordering is needed. Surviving knowledge: Hamiltonian trace failure was the
+diagnostic that revealed both the false-adjacency bug and the recorded-order fact.
+
+## Endpoint-only adjacency for `walkBoundary` — too strict, abandoned
+
+After the Hamiltonian trace was removed, `sharedEndpt` (using only `endpts`, not
+`allNodes`) was tried as a direction-detection mechanism. It dropped triangulated
+patches from 153→72 because T-junctions — where stroke A's endpoint touches the
+interior of stroke B — correctly share only one endpoint (A's), not both. The
+restriction made those pairs appear non-adjacent. Endpoint-only is correct for
+*cycle-membership checks* but wrong for *direction detection* in the boundary walk.
+Replaced by geometry-based direction (endpoint distance comparison).
+
+## Node-ID direction detection for `walkBoundary` — fragile, abandoned
+
+After removing the Hamiltonian trace, direction was determined by comparing node
+IDs: the exit of stroke i is the endpoint node shared with stroke i+1, and
+`prevExitNode` was threaded through the loop. This failed for mirror-stroke lens
+patches (k=2, patches 0/1/2/93): both strokes shared the same two endpoint nodes,
+so `sharedN` returned the first node arbitrarily, giving the wrong direction for
+the second stroke and producing a figure-8 polyline. Replaced by direct endpoint
+distance comparison against each stroke's polyline endpoints.

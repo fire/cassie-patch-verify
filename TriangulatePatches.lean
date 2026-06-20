@@ -24,68 +24,53 @@ def walkBoundary (B : Array Nat) (inc : Array StrokeIncidence)
   let k := B.size
   if k == 0 then return #[]
 
-  let ns := allNodes inc
-  let sharedN (a b : Nat) : Array Nat :=
-    let na := ns a; let nb := ns b
-    na.foldl (fun acc nid =>
-      if nb.contains nid && ¬ acc.contains nid then acc.push nid else acc) #[]
+  -- CASSIE records strokesID in cycle order — walk B as given.
+  -- Direction: chain from previous stroke's exit so the boundary is non-self-intersecting.
 
   -- k=1: single closed-loop stroke — emit all points
   if k == 1 then
-    let poly := polys.getD B[0]! #[]
+    let poly := polys.getD (B.getD 0 0) #[]
     let mut out : Array Float := #[]
     for p in poly do
       out := out.push p.1; out := out.push p.2.1; out := out.push p.2.2
     return out
 
-  -- Build stroke-level adjacency
-  let mut adj : Array (Array Nat) := Array.replicate k #[]
-  for a in [:k] do
-    for b in [a+1:k] do
-      if ¬ (sharedN B[a]! B[b]!).isEmpty then
-        adj := adj.modify a (·.push b)
-        adj := adj.modify b (·.push a)
+  let vd2 (a b : Vec3) : Float :=
+    let dx := a.1 - b.1; let dy := a.2.1 - b.2.1; let dz := a.2.2 - b.2.2
+    dx*dx + dy*dy + dz*dz
 
-  -- Greedy Hamiltonian trace (valid because formsCycle already verified the cycle)
-  let mut order : Array Nat := #[0]
-  let mut visited := (Array.replicate k false).set! 0 true
-  let mut cur := 0
-  for _ in [1:k] do
-    let next := (adj.getD cur #[]).foldl
-      (fun acc nb => if acc.isNone && nb < k && !visited.getD nb false then some nb else acc)
-      none
-    match next with
-    | some nb =>
-      order := order.push nb; visited := visited.set! nb true; cur := nb
-    | none => ()
+  -- Bootstrap direction for stroke 0: which end exits toward stroke 1?
+  let s0 := B.getD 0 0; let s1 := B.getD 1 0
+  let p00 := (polys.getD s0 #[]).getD 0 (0.0, 0.0, 0.0)
+  let p0L := let p := polys.getD s0 #[]; p.getD (p.size - 1) (0.0, 0.0, 0.0)
+  let q10 := (polys.getD s1 #[]).getD 0 (0.0, 0.0, 0.0)
+  let q1L := let p := polys.getD s1 #[]; p.getD (p.size - 1) (0.0, 0.0, 0.0)
+  -- Stroke 0 is forward if its LAST point is close to an endpoint of stroke 1.
+  let d0near := min (vd2 p00 q10) (vd2 p00 q1L)
+  let dLnear := min (vd2 p0L q10) (vd2 p0L q1L)
+  let fwd0 := dLnear ≤ d0near
+  -- exitPt0 = the actual end of stroke 0 (not the last point, but the junction toward s1)
+  let exitPt0 : Vec3 := if fwd0 then p0L else p00
 
-  -- Determine direction of first stroke: exit toward order[1]
-  let s0 := B[order[0]!]!
-  let s1 := B[order[1]!]!
-  let sh01 := sharedN s0 s1
-  let exitNode0 := sh01.getD 0 0
-  let inc0 := inc.getD s0 { hosted := #[], endpts := #[] }
-  -- forward if the last endpoint is the exit; backward otherwise
-  let fwd0 := inc0.endpts.size > 0 && inc0.endpts[inc0.endpts.size - 1]! == exitNode0
-
-  let mut prevExitNode := exitNode0
+  let mut exitPt := exitPt0
   let mut out : Array Float := #[]
 
   for oi in [:k] do
-    let si := B[order[oi]!]!
+    let si   := B.getD oi 0
     let poly := polys.getD si #[]
-    let sni := inc.getD si { hosted := #[], endpts := #[] }
+    let p0 := poly.getD 0 (0.0, 0.0, 0.0)
+    let pL := poly.getD (poly.size - 1) (0.0, 0.0, 0.0)
 
+    -- For stroke 0: use bootstrap direction.
+    -- For subsequent strokes: entry is whichever end is closer to the previous exitPt.
     let fwd : Bool :=
       if oi == 0 then fwd0
-      else sni.endpts.size > 0 && sni.endpts[0]! == prevExitNode
+      else vd2 p0 exitPt ≤ vd2 pL exitPt
 
-    -- Update exit node for next stroke
-    prevExitNode :=
-      if fwd then sni.endpts.getD (sni.endpts.size - 1) 0
-      else sni.endpts.getD 0 0
+    -- Update exitPt: the opposite end from entry (= junction with next stroke)
+    exitPt := if fwd then pL else p0
 
-    -- Emit all points except the last (it equals the first point of the next stroke)
+    -- Emit all points except the last (= junction with next stroke)
     let pts := if fwd then poly else poly.reverse
     let nEmit := if pts.size > 0 then pts.size - 1 else 0
     for pi in [:nEmit] do
@@ -147,7 +132,10 @@ def main : IO Unit := do
     let B := boundary[pid]!
     if B.size == 0 then continue
     let (verts, tris) ← CassieTriangulate.triangulatePatch B inc polys
-    if verts.size == 0 then continue
+    if verts.size == 0 then do
+      let bd := CassieTriangulate.walkBoundary B inc polys
+      IO.eprintln s!"FAIL patch {pid} k={B.size} bdPts={bd.size / 3}"
+      continue
     nTriangulated := nTriangulated + 1
     let nv := verts.size / 3
     let nt := tris.size / 3
