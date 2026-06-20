@@ -157,6 +157,34 @@ Research findings (file:line in the cassie-lean Lean tree unless noted):
 
 ---
 
+## Blocklist
+
+Approaches permanently rejected. Do not re-propose without new evidence.
+
+| Approach | Why blocked |
+|----------|-------------|
+| Centroid fan fallback | Produces non-CDT triangulations; degenerate patches silently accepted |
+| PCA projection + explicit xnode insertion | Requires pre-computed ctrlPts; breaks oracle independence from C++ data |
+| Port Bézier fitter / constraint solver | Depends on ctrlPts path; oracle must work from raw hat.json only |
+| Raw DMWT fallback in `refine_patch` | Bypasses PMP remeshing; breaks downstream mesh quality guarantees |
+| `String.dropRight` (Lean 4) | Deprecated; use `String.dropEnd` |
+| `throw`/`IO.throwIO`/`IO.userError` in `#eval` tests | Exceptions in tests; use pure `#eval Bool` expressions instead |
+
+### Blocklist exceptions — approved frameworks
+
+The following are **explicitly allowed** despite the general bias toward minimizing
+external dependencies:
+
+- **C++ property tests**: [RapidCheck](https://github.com/emil-e/rapidcheck) vendored
+  at `vendor/rapidcheck/`. Build via `tests/build_test_cdt_rc.sh`. Use `rc::check`
+  for all new C++ property-based tests; do not introduce Catch2, gtest, or doctest.
+- **Lean 4 property tests**: [plausible-witness-dag](https://github.com/fire/plausible-witness-dag)
+  (lake package) + `Plausible` (transitive dep). Use `#eval Testable.check (∀ ...)` for
+  property tests and `#eval do ... RC_ASSERT ...` pattern for concrete tests in
+  `PipelineTests.lean`. Do not introduce Std4 test runners or Batteries.
+
+---
+
 ## Closed
 
 ### §1. Boundary incidence — 234/234

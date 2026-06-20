@@ -24,6 +24,8 @@ lean_lib «Pipeline» where
 -- Property-based tests using plausible-witness-dag.
 lean_lib «PipelineTests» where
 
+lean_lib «PipelineTestsMinimal» where
+
 @[default_target] lean_exe «cassie-patch-verify» where
   root := `Main
 
