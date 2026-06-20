@@ -21,9 +21,18 @@ consumer. No code reads both the Lean oracle mesh and the C++ production mesh an
 reports divergences. A divergence is evidence of a C++ bug; without the diff, the
 oracle's triangulation work has no path to fix production.
 
-The gap is a script or Lean program that loads `patches_mesh.json` alongside the
-C++ mesh dump (e.g. exported from the Godot scene or `CassiePolylinesJson`) and
-reports per-patch vertex/topology differences above a threshold.
+The near-term path is a JSON comparison: load `patches_mesh.json` alongside the
+C++ mesh dump (exported from Godot or `CassiePolylinesJson`) and report per-patch
+vertex/topology differences above a threshold.
+
+A GPU-accelerated path exists via `lean-slang` (vendored at
+`vendor/lean-slang/`): lean-slang emits Slang compute shaders from a Lean AST.
+Slang supports `[Differentiable]` functions and `fwd_diff`/`bwd_diff`, which
+enable differentiable mesh comparison kernels (e.g. Chamfer distance between
+oracle and C++ vertex sets). The lean-slang AST (`LeanSlang/AST.lean`) has no
+`[Differentiable]` node yet — extending it is the prerequisite. The `declarePrecise`
+statement (maps to SPIR-V `NoContraction`) is already present, which is the
+correct foundation for numerically stable distance computation.
 
 ### B. Boundary triangulation — 186/234 (oracle incomplete)
 
@@ -49,23 +58,21 @@ exit point through the loop (chaining), which a naive implementation worsens to
 150/234 by propagating bootstrap errors — see TOMBSTONES; (b) seeding direction
 from `appliedPositionConstraints` junction positions already present in `hat.json`.
 
-### C. Mesh → inventory item — no wiring
+### C. Mesh → inventory item — deferred pending OpenUSD readiness
 
-No code converts a triangulated CASSIE patch mesh into a V-Sekai inventory item.
-The content-creation pipeline's differentiator is that a VR drawing becomes a
-tradeable item; this conversion step has no implementation or specification in
-this repo or in the V-Sekai codebase as far as is known here.
+The intended path: CASSIE mesh → `.usd` file → `idtx-flow` imports it into
+Godot as a `UsdMeshInstanceNode3D` → inventory item. `idtx-flow`
+(https://github.com/v-sekai-multiplayer-fabric/idtx-flow) is the Godot plugin
+that provides the import side; it handles `.usd`/`.usda`/`.usdc`/`.usdz` files
+and maps `Mesh` prims to `ArrayMesh`. The CASSIE-side export (mesh → `.usd`) is
+not started. Once the oracle reliably produces 234/234 correct meshes, the export
+step is the next piece.
 
-The gap includes: a schema for what an "item" is (mesh + metadata), the Godot
-code that registers the mesh output as an item in the inventory system, and a
-round-trip test that a drawn hat patch appears in a player's inventory.
+### D. OpenUSD → CDN — out of scope for this repo
 
-### D. OpenUSD export — no implementation
-
-No code archives a CASSIE mesh to OpenUSD format for CDN storage. The 1Password
-priority poll records `inventory ↔ OpenUSD I/O` as a high-priority item (voted by
-Lyuma), and the architecture note describes "OpenUSD archival → scn(zstd) → uro
-CDN," but no implementation exists in this repo.
+A separate process is assumed to take the OpenUSD file produced by CASSIE and
+deliver it to the zone backend / CDN (`OpenUSD archival → scn(zstd) → uro CDN`).
+This repo has no responsibility for that step.
 
 ---
 
