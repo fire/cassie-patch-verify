@@ -260,6 +260,51 @@ private def boundaryFromJunctions (B : Array Nat)
     out := out.push junctionPt.1; out := out.push junctionPt.2.1; out := out.push junctionPt.2.2
   return out
 
+/-- Like `boundaryFromJunctions` but emits a 3-point window around each junction.
+    Pass-5 fallback for star intersections where all k junctions are collinear
+    or collocated: the extra points along each stroke arm break the degeneracy. -/
+private def boundaryFromJunctionsWindow (B : Array Nat)
+    (polys : Array (Array Vec3)) (xnodes : Array (Array Vec3)) : Array Float := Id.run do
+  let k := B.size
+  if k < 3 then return #[]
+  let vd2 (a b : Vec3) : Float :=
+    let dx := a.1 - b.1; let dy := a.2.1 - b.2.1; let dz := a.2.2 - b.2.2
+    dx*dx + dy*dy + dz*dz
+  let mut out : Array Float := #[]
+  for oi in [:k] do
+    let si    := B.getD oi 0
+    let prevSi := B.getD ((oi + k - 1) % k) 0
+    if si == prevSi then continue
+    let xns     := xnodes.getD si #[]
+    let prevXns := xnodes.getD prevSi #[]
+    let poly     := polys.getD si #[]
+    let prevPoly := polys.getD prevSi #[]
+    let n := poly.size
+    -- Find junction position (same logic as boundaryFromJunctions)
+    let junctionPt : Vec3 :=
+      if not xns.isEmpty && not prevXns.isEmpty then
+        match closestXnodeToXnodes xns prevXns with
+        | some xn => xn | none => xns[0]!
+      else if not xns.isEmpty then
+        match closestXnodeToPoly xns prevPoly with
+        | some xn => xn | none => xns[0]!
+      else
+        let p0 := poly.getD 0 (0,0,0); let pL := poly.getD (n - 1) (0,0,0)
+        if prevPoly.isEmpty then p0
+        else
+          let pp0 := prevPoly.getD 0 (0,0,0); let ppL := prevPoly.getD (n - 1) (0,0,0)
+          let d0 := min (vd2 p0 pp0) (vd2 p0 ppL)
+          let dL := min (vd2 pL pp0) (vd2 pL ppL)
+          if d0 ≤ dL then p0 else pL
+    -- Emit a 3-point window centred on the junction index within poly
+    let jIdx := closestIdx poly junctionPt
+    let lo := if jIdx >= 1 then jIdx - 1 else 0
+    let hi := min (jIdx + 2) n  -- exclusive
+    for pi in [lo : hi] do
+      let p := poly.getD pi (0,0,0)
+      out := out.push p.1; out := out.push p.2.1; out := out.push p.2.2
+  return out
+
 /-- Run geogram CDT2d on a flat xyz boundary and decode results.
     Returns empty arrays on failure. -/
 private def runCDT (bd : Array Float) : IO (Array Float × Array Nat) := do
@@ -316,11 +361,29 @@ def triangulatePatch (B : Array Nat) (inc : Array StrokeIncidence)
   if B.size == 2 then
     let bd4 := walkBoundaryK2Flip B polys
     let (v4, t4) ← runCDT bd4
-    return (v4, t4)
+    if v4.size > 0 then return (v4, t4)
+    -- Pass 6 (k=2): 4-endpoint quadrilateral (3 orderings) — last resort for k=2
+    -- when both stroke directions produce a self-intersecting polygon.
+    let s0 := B.getD 0 0; let s1 := B.getD 1 0
+    let poly0 := polys.getD s0 #[]; let poly1 := polys.getD s1 #[]
+    if not poly0.isEmpty && not poly1.isEmpty then
+      let p00 := poly0.getD 0 (0,0,0); let p0L := poly0.getD (poly0.size - 1) (0,0,0)
+      let q10 := poly1.getD 0 (0,0,0); let q1L := poly1.getD (poly1.size - 1) (0,0,0)
+      let mk4 (a b c d : Vec3) : Array Float :=
+        #[a.1, a.2.1, a.2.2, b.1, b.2.1, b.2.2, c.1, c.2.1, c.2.2, d.1, d.2.1, d.2.2]
+      for bd6 in [mk4 p00 q10 p0L q1L, mk4 p00 q1L p0L q10, mk4 p00 p0L q1L q10] do
+        let (v6, t6) ← runCDT bd6
+        if v6.size > 0 then return (v6, t6)
+    return (#[], #[])
   let bd4 := boundaryFromJunctions B polys xnodes
   if bd4.size / 3 >= 3 then
     let (v4, t4) ← runCDT bd4
-    return (v4, t4)
+    if v4.size > 0 then return (v4, t4)
+  -- Pass 5: 3-point window per stroke (breaks collinear/collocated star junctions)
+  let bd5 := boundaryFromJunctionsWindow B polys xnodes
+  if bd5.size / 3 >= 3 then
+    let (v5, t5) ← runCDT bd5
+    return (v5, t5)
   return (#[], #[])
 
 /-- Build a JSON number from a Float (finite values only). -/
