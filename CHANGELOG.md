@@ -18,7 +18,7 @@
   Lean→Slang→Vulkan numeric solve, (3) this plausible witness oracle for the
   combinatorial detection.
 
-## Boundary triangulation (TriangulatePatches) — 215/234
+## Boundary triangulation (TriangulatePatches) — 231/234
 
 `walkBoundary` was rewritten four times:
 
@@ -38,15 +38,22 @@
    endpoints. Eliminated false-adjacency. Remaining 84 failures: strokes spanning
    multiple overlapping patches emitted full polylines → self-intersection.
 
-4. **Junction-based sub-segment clipping (215/234, current):**
+4. **Junction-based sub-segment clipping (215/234):**
    `loadSession` now returns `xnodes` (5-tuple). For each stroke in a boundary
    (k≥3), `walkBoundary` looks up `xnodes[si]` — the recorded
    `appliedPositionConstraints` (`isIntersection`) world positions — and finds:
    (a) the xnode closest to the previous stroke's polyline → entry index;
    (b) the xnode closest to the next stroke's polyline → exit index.
    Only the sub-segment `poly[entryIdx..exitIdx)` is emitted. k=2 patches use
-   the full-stroke endpoint-distance approach (prev/next are the same stroke;
-   xnode search collapses). Remaining 19 failures tracked in OPEN_GAPS §B.
+   the full-stroke endpoint-distance approach.
+
+5. **Two-pass retry with xnode-to-xnode disambiguation (231/234, current):**
+   `triangulatePatch` runs pass-1 (xnode-to-poly) and on CDT2d failure retries
+   with pass-2 (xnode-to-xnode: find xnode in `xnodes[si]` closest to any xnode
+   in the neighboring stroke's `xnodes`). CASSIE records junctions asymmetrically,
+   so pass-1 handles strokes where the neighbor doesn't record the shared junction;
+   pass-2 recovers the 16 k=4 patches (45–86) where multi-junction strokes were
+   snapping to the wrong xnode. Remaining 3 failures: 120 (k=5), 178, 182 (k=10).
 
 **Hexagonal Pipeline library built and property-tested:**
 `Pipeline/Core` (Vec3, Bezier, RDP, G1Sections, Graph, GraphBuilder, CycleDetect),

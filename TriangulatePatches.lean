@@ -26,8 +26,25 @@ private def closestIdx (poly : Array Vec3) (target : Vec3) : Nat := Id.run do
     if d < bestD then best := i; bestD := d
   return best
 
-/-- Closest xnode in `xns` to any point in `refPoly`; returns the xnode or `none`. -/
-private def closestXnode (xns : Array Vec3) (refPoly : Array Vec3) : Option Vec3 := Id.run do
+/-- Closest xnode in `xns` to any xnode in `refXns`; returns the xnode or `none`.
+    Preferred over `closestXnodeToPoly` when the neighboring stroke has recorded
+    junctions — the shared junction must appear in both sets, so this avoids
+    snapping to the wrong junction when a stroke crosses multiple patches. -/
+private def closestXnodeToXnodes (xns : Array Vec3) (refXns : Array Vec3) : Option Vec3 := Id.run do
+  if xns.isEmpty || refXns.isEmpty then return none
+  let vd2 (a b : Vec3) : Float :=
+    let dx := a.1 - b.1; let dy := a.2.1 - b.2.1; let dz := a.2.2 - b.2.2
+    dx*dx + dy*dy + dz*dz
+  let mut bestXn : Vec3 := xns[0]!; let mut bestD := 1.0e308
+  for xn in xns do
+    for rx in refXns do
+      let d := vd2 xn rx
+      if d < bestD then bestXn := xn; bestD := d
+  return some bestXn
+
+/-- Closest xnode in `xns` to any point in `refPoly`; fallback when the neighboring
+    stroke has no recorded junction positions. -/
+private def closestXnodeToPoly (xns : Array Vec3) (refPoly : Array Vec3) : Option Vec3 := Id.run do
   if xns.isEmpty || refPoly.isEmpty then return none
   let vd2 (a b : Vec3) : Float :=
     let dx := a.1 - b.1; let dy := a.2.1 - b.2.1; let dz := a.2.2 - b.2.2
@@ -43,9 +60,13 @@ private def closestXnode (xns : Array Vec3) (refPoly : Array Vec3) : Option Vec3
     For strokes with recorded intersection positions (`xnodes[si]`), clips to the
     sub-segment between entry and exit junctions to avoid self-intersections when a
     stroke spans multiple overlapping patches.  Falls back to full-poly endpoint
-    direction for strokes with no xnodes. -/
+    direction for strokes with no xnodes.
+    `useXX`: when true, use xnode-to-xnode junction search (more discriminating
+    when a stroke has ≥2 xnodes from different patches); when false (default),
+    use xnode-to-poly. -/
 def walkBoundary (B : Array Nat) (inc : Array StrokeIncidence)
-    (polys : Array (Array Vec3)) (xnodes : Array (Array Vec3)) : Array Float := Id.run do
+    (polys : Array (Array Vec3)) (xnodes : Array (Array Vec3)) (useXX : Bool := false)
+    : Array Float := Id.run do
   let k := B.size
   if k == 0 then return #[]
 
@@ -99,33 +120,44 @@ def walkBoundary (B : Array Nat) (inc : Array StrokeIncidence)
     let prevPoly := polys.getD prevSi #[]
     let nextPoly := polys.getD nextSi #[]
 
-    -- Junction-based clipping when the stroke has recorded intersection positions.
-    -- Entry xnode: junction closest to previous stroke's polyline.
-    -- Exit xnode:  junction closest to next stroke's polyline.
-    let entryIdx : Nat :=
-      match closestXnode xns prevPoly with
-      | some xn => closestIdx poly xn
-      | none =>
-        -- Fallback: use whichever endpoint is closer to previous stroke's endpoints
-        let p0 := poly.getD 0 (0.0, 0.0, 0.0)
-        let pL := poly.getD (poly.size - 1) (0.0, 0.0, 0.0)
-        let pp0 := prevPoly.getD 0 (0.0, 0.0, 0.0)
-        let ppL := prevPoly.getD (prevPoly.size - 1) (0.0, 0.0, 0.0)
-        let d0 := min (vd2 p0 pp0) (vd2 p0 ppL)
-        let dL := min (vd2 pL pp0) (vd2 pL ppL)
-        if d0 ≤ dL then 0 else poly.size - 1
+    -- Junction-based clipping: find the shared junction between this stroke and
+    -- its neighbors.  Two modes: xnode-to-poly (default, stable) and
+    -- xnode-to-xnode (retry mode, more discriminating for multi-junction strokes).
+    let prevXns := xnodes.getD prevSi #[]
+    let nextXns := xnodes.getD nextSi #[]
+    let entryXn : Option Vec3 :=
+      if useXX && xns.size >= 2 then
+        match closestXnodeToXnodes xns prevXns with
+        | some xn => some xn
+        | none    => closestXnodeToPoly xns prevPoly
+      else closestXnodeToPoly xns prevPoly
+    let exitXn : Option Vec3 :=
+      if useXX && xns.size >= 2 then
+        match closestXnodeToXnodes xns nextXns with
+        | some xn => some xn
+        | none    => closestXnodeToPoly xns nextPoly
+      else closestXnodeToPoly xns nextPoly
 
-    let exitIdx : Nat :=
-      match closestXnode xns nextPoly with
-      | some xn => closestIdx poly xn
-      | none =>
-        let p0 := poly.getD 0 (0.0, 0.0, 0.0)
-        let pL := poly.getD (poly.size - 1) (0.0, 0.0, 0.0)
-        let np0 := nextPoly.getD 0 (0.0, 0.0, 0.0)
-        let npL := nextPoly.getD (nextPoly.size - 1) (0.0, 0.0, 0.0)
-        let d0 := min (vd2 p0 np0) (vd2 p0 npL)
-        let dL := min (vd2 pL np0) (vd2 pL npL)
-        if dL ≤ d0 then poly.size - 1 else 0
+    let endpointEntry : Nat :=
+      let p0 := poly.getD 0 (0.0, 0.0, 0.0)
+      let pL := poly.getD (poly.size - 1) (0.0, 0.0, 0.0)
+      let pp0 := prevPoly.getD 0 (0.0, 0.0, 0.0)
+      let ppL := prevPoly.getD (prevPoly.size - 1) (0.0, 0.0, 0.0)
+      let d0 := min (vd2 p0 pp0) (vd2 p0 ppL)
+      let dL := min (vd2 pL pp0) (vd2 pL ppL)
+      if d0 ≤ dL then 0 else poly.size - 1
+
+    let endpointExit : Nat :=
+      let p0 := poly.getD 0 (0.0, 0.0, 0.0)
+      let pL := poly.getD (poly.size - 1) (0.0, 0.0, 0.0)
+      let np0 := nextPoly.getD 0 (0.0, 0.0, 0.0)
+      let npL := nextPoly.getD (nextPoly.size - 1) (0.0, 0.0, 0.0)
+      let d0 := min (vd2 p0 np0) (vd2 p0 npL)
+      let dL := min (vd2 pL np0) (vd2 pL npL)
+      if dL ≤ d0 then poly.size - 1 else 0
+
+    let entryIdx : Nat := match entryXn with | some xn => closestIdx poly xn | none => endpointEntry
+    let exitIdx  : Nat := match exitXn  with | some xn => closestIdx poly xn | none => endpointExit
 
     -- Emit the sub-segment from entryIdx to exitIdx (exclusive of exitIdx,
     -- which is shared with the next stroke).
@@ -143,11 +175,9 @@ def walkBoundary (B : Array Nat) (inc : Array StrokeIncidence)
 
   return out
 
-/-- Triangulate one patch boundary via geogram CDT2d.
-    Returns `(verts_flat_xyz, tris_flat_abc)` or empty arrays on failure. -/
-def triangulatePatch (B : Array Nat) (inc : Array StrokeIncidence)
-    (polys : Array (Array Vec3)) (xnodes : Array (Array Vec3)) : IO (Array Float × Array Nat) := do
-  let bd := walkBoundary B inc polys xnodes
+/-- Run geogram CDT2d on a flat xyz boundary and decode results.
+    Returns empty arrays on failure. -/
+private def runCDT (bd : Array Float) : IO (Array Float × Array Nat) := do
   let n := bd.size / 3
   if n < 3 then return (#[], #[])
   let fa := FloatArray.mk bd
@@ -156,10 +186,9 @@ def triangulatePatch (B : Array Nat) (inc : Array StrokeIncidence)
   let nt ← nTriangles dh
   if nv.toNat == 0 || nt.toNat == 0 then
     delaunayFree dh; return (#[], #[])
-  let vbuf ← getPositions dh  -- raw bytes: 8 bytes per double
-  let tbuf ← getTriangles dh  -- raw bytes: 4 bytes per uint32 index
+  let vbuf ← getPositions dh
+  let tbuf ← getTriangles dh
   delaunayFree dh
-  -- Decode doubles from raw bytes (little-endian IEEE 754)
   let decodeDbl (ba : ByteArray) (i : Nat) : Float :=
     let b := i * 8
     let bits : UInt64 :=
@@ -170,13 +199,27 @@ def triangulatePatch (B : Array Nat) (inc : Array StrokeIncidence)
     Float.ofBits bits
   let mut verts : Array Float := #[]
   for i in [:nv.toNat * 3] do verts := verts.push (decodeDbl vbuf i)
-  -- Decode little-endian uint32 triangle indices
   let mut tris : Array Nat := #[]
   for i in [:nt.toNat * 3] do
     let b := i * 4
     tris := tris.push ((tbuf.get! b).toNat ||| ((tbuf.get! (b+1)).toNat <<< 8) |||
       ((tbuf.get! (b+2)).toNat <<< 16) ||| ((tbuf.get! (b+3)).toNat <<< 24))
   return (verts, tris)
+
+/-- Triangulate one patch boundary via geogram CDT2d.
+    First tries xnode-to-poly junction search; if CDT2d rejects it, retries with
+    xnode-to-xnode disambiguation (better when a stroke has ≥2 xnodes from
+    different patches). Returns `(verts_flat_xyz, tris_flat_abc)` or empty arrays. -/
+def triangulatePatch (B : Array Nat) (inc : Array StrokeIncidence)
+    (polys : Array (Array Vec3)) (xnodes : Array (Array Vec3)) : IO (Array Float × Array Nat) := do
+  -- Pass 1: xnode-to-poly (stable baseline)
+  let bd1 := walkBoundary B inc polys xnodes false
+  let (v1, t1) ← runCDT bd1
+  if v1.size > 0 then return (v1, t1)
+  -- Pass 2: xnode-to-xnode (disambiguation for multi-junction strokes)
+  let bd2 := walkBoundary B inc polys xnodes true
+  let (v2, t2) ← runCDT bd2
+  return (v2, t2)
 
 /-- Build a JSON number from a Float (finite values only). -/
 def jf (x : Float) : Json :=

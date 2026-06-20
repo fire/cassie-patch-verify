@@ -34,25 +34,30 @@ oracle and C++ vertex sets). The lean-slang AST (`LeanSlang/AST.lean`) has no
 statement (maps to SPIR-V `NoContraction`) is already present, which is the
 correct foundation for numerically stable distance computation.
 
-### B. Boundary triangulation — 215/234 (oracle incomplete)
+### B. Boundary triangulation — 231/234 (oracle incomplete)
 
 `TriangulatePatches` walks each patch's recorded `strokesID` in order (CASSIE
 writes them in cycle order), clips each stroke to its junction sub-segment using
 recorded `appliedPositionConstraints` (`isIntersection`) positions from `hat.json`
-(`xnodes`), then calls geogram CDT2d. The score is **215/234**; the 19 failures
+(`xnodes`), then calls geogram CDT2d. The score is **231/234**; the 3 failures
 mean those patches have no reference mesh to diff against C++.
 
 **k=2 patches:** handled with endpoint-distance direction (full-stroke emission).
 k=2 patches correctly triangulate because they form simple two-arc closed curves.
 
-**Remaining 19 failures (k=4+):** geogram reports "bad input" or "no solution."
-The patches: 45, 46, 49, 50, 57, 58, 61, 62, 69, 70, 73, 74, 81, 82, 85, 86
-(k=4, bdPts=80–96), 120 (k=5, bdPts=80), 178, 182 (k=10, bdPts=128). The xnode
-clipping reduces bdPts vs. the full-poly approach but the path still
-self-intersects. Two likely causes: (a) the closest-xnode heuristic snaps to the
-wrong junction when a stroke has multiple xnodes from different crossing patches;
-(b) the polyline sub-segment still overshoots the true junction position, leaving a
-kink at the junction.
+**Two-pass strategy:** `triangulatePatch` tries pass-1 (xnode-to-poly: find the
+xnode in `xnodes[si]` closest to any point on the neighboring stroke's poly) and
+on CDT2d rejection retries with pass-2 (xnode-to-xnode: find the xnode in
+`xnodes[si]` closest to any xnode in the neighboring stroke's `xnodes`, which
+better disambiguates strokes with ≥2 xnodes from different patches). CASSIE
+records junctions asymmetrically (only the later-drawn stroke logs the junction),
+so xnode-to-poly is more robust for strokes with symmetric recording while
+xnode-to-xnode is more discriminating for multi-junction strokes.
+
+**Remaining 3 failures:** 120 (k=5, bdPts=80), 178, 182 (k=10, bdPts=128). Both
+passes fail CDT2d. The sub-segment is still self-intersecting after clipping — the
+xnode world position doesn't land exactly on the densified Bézier polyline, so the
+closest poly index may overshoot or undershoot the true junction, leaving a kink.
 
 ### C. Mesh → inventory item — deferred pending OpenUSD readiness
 
