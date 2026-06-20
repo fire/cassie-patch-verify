@@ -1127,10 +1127,15 @@ Point Remeshing::minimize_squared_areas(Vertex v)
         b += w * D * p;
     }
 
-    // -fno-exceptions patch: inverse() now aborts on singular matrices,
-    // so no need to catch — direct call.
-    x = inverse(A) * b;
+    // Check determinant before calling inverse() — for near-degenerate meshes
+    // (fan triangulations of planar patches) edges can collapse to near-zero
+    // length, making the w = 1/norm(d) weight blow up and A singular.
+    // Fall back to weighted_centroid, matching the original pmp try/catch path.
+    const auto det = determinant(A);
+    if (fabs(det) < 1.0e-10 || std::isnan(det))
+        return weighted_centroid(v);
 
+    x = inverse(A) * b;
     return Point(x);
 }
 

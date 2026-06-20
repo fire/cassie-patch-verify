@@ -5,7 +5,9 @@
 
 #include <cerrno>
 #include <csignal>
+#include <cstdio>
 #include <cstring>
+#include <fcntl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <unordered_map>
@@ -78,6 +80,7 @@ void refine_patch(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, float targ
     }
 
     const unsigned int nb_iter = 3;
+    time_t t_fork_start = time(nullptr);
 
     // Run pmp::uniform_remeshing in a fork()ed child so that if it hangs
     // (kd-tree projection loops on near-degenerate DMWT output), the parent
@@ -85,19 +88,52 @@ void refine_patch(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, float targ
     // Result is piped back: [nV:int][nF:int][nV×3 doubles][nF×3 ints].
     int fds[2];
     if (pipe(fds) != 0) {
-        // pipe() failed — skip remeshing.
-        V_fine = V; F_fine = F; return;
+        V_fine.resize(0, 3); F_fine.resize(0, 3); return;
     }
 
     pid_t child = fork();
     if (child < 0) {
         close(fds[0]); close(fds[1]);
-        V_fine = V; F_fine = F; return;
+        V_fine.resize(0, 3); F_fine.resize(0, 3); return;
     }
 
     if (child == 0) {
         // --- Child process -------------------------------------------------
+        // Reset inherited FFI signal handlers so pmp crashes terminate the
+        // child normally (SIGABRT/SIGSEGV → default) rather than siglongjmp-ing
+        // to a stack frame that no longer exists in the child.
+        signal(SIGSEGV, SIG_DFL);
+        signal(SIGFPE,  SIG_DFL);
+        signal(SIGABRT, SIG_DFL);
         close(fds[0]);
+        fprintf(stderr, "[child pid=%d] V=%d F=%d target=%.4f starting dump+remesh\n",
+                (int)getpid(), (int)V.rows(), (int)F.rows(), (double)targetEdgeLength);
+
+        // Dump input V,F to /tmp/refine_dump_NV_NF.bin for unit test capture.
+        // Format: [nV:int][nF:int][nV*3 doubles][nF*3 ints]
+        // Only dumps if the file doesn't already exist (first occurrence wins).
+        {
+            int nVin = static_cast<int>(V.rows());
+            int nFin = static_cast<int>(F.rows());
+            char path[256];
+            snprintf(path, sizeof(path), "/tmp/refine_dump_%d_%d_pid%d.bin",
+                     nVin, nFin, (int)getpid());
+            int dfd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (dfd >= 0) {
+                full_write(dfd, &nVin, sizeof(int));
+                full_write(dfd, &nFin, sizeof(int));
+                for (Eigen::Index i = 0; i < V.rows(); ++i) {
+                    double d[3] = {V(i,0), V(i,1), V(i,2)};
+                    full_write(dfd, d, sizeof(d));
+                }
+                for (Eigen::Index i = 0; i < F.rows(); ++i) {
+                    int tri[3] = {F(i,0), F(i,1), F(i,2)};
+                    full_write(dfd, tri, sizeof(tri));
+                }
+                close(dfd);
+            }
+        }
+
         pmp::uniform_remeshing(mesh, static_cast<pmp::Scalar>(targetEdgeLength),
                                nb_iter, /*use_projection=*/true);
 
@@ -164,9 +200,16 @@ void refine_patch(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, float targ
         waitpid(child, &status, 0);
     }
 
+    time_t elapsed = time(nullptr) - t_fork_start;
     if (!ok) {
-        // Timed out or pipe error: fall back to raw DMWT mesh.
-        V_fine = V;
-        F_fine = F;
+        fprintf(stderr, "[refine TIMEOUT] V=%d F=%d elapsed=%lds\n",
+                (int)V.rows(), (int)F.rows(), (long)elapsed);
+        // Timed out or pipe error: report failure (empty mesh).
+        // Callers check nV==0 and treat this patch as unresolved.
+        V_fine.resize(0, 3);
+        F_fine.resize(0, 3);
+    } else {
+        fprintf(stderr, "[refine done] V=%d F=%d → V=%d F=%d elapsed=%lds\n",
+                (int)V.rows(), (int)F.rows(), nV, nF, (long)elapsed);
     }
 }

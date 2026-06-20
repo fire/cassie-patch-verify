@@ -95,14 +95,31 @@ beautified curve (not raw `inputSamples`) places the polyline exactly where the
 snapped junctions land. Adjacency is confirmed geometrically because constraints
 are recorded asymmetrically (only the later-drawn stroke logs a junction). -/
 private def parseStroke (j : Json) : Except String (Nat × Array Vec3 × Array Vec3) := do
-  let id   ← (← j.getObjVal? "id").getNat?
-  let ctrl ← (← (← j.getObjVal? "ctrlPts").getArr?).mapM parseVec
-  let cons ← (← j.getObjVal? "appliedPositionConstraints").getArr?
-  let pts ← cons.foldlM (init := (#[] : Array Vec3)) fun acc c => do
-    if (← (← c.getObjVal? "isIntersection").getBool?) then
-      pure (acc.push (← parseVec (← c.getObjVal? "position")))
-    else pure acc
-  pure (id, densify ctrl, pts)
+  let id ← (← j.getObjVal? "id").getNat?
+  -- Sessions with Bézier fitting have ctrlPts; raw sessions only have inputSamples.
+  let poly ← match j.getObjVal? "ctrlPts" with
+    | .ok arr => do
+        let ctrl ← (← arr.getArr?).mapM parseVec
+        pure (densify ctrl)
+    | .error _ => do
+        let samples ← (← (← j.getObjVal? "inputSamples").getArr?).mapM parseVec
+        pure samples
+  -- Intersection xnodes. Two formats exist:
+  -- Intersection xnodes are absent in raw sessions — treat as empty.
+  let pts ← match j.getObjVal? "appliedPositionConstraints" with
+    | .ok consJ => do
+        let cons ← consJ.getArr?
+        cons.foldlM (init := (#[] : Array Vec3)) fun acc c => do
+          match c.getObjVal? "isIntersection" with
+          | .ok isIntJ =>
+              if (← isIntJ.getBool?) then
+                pure (acc.push (← parseVec (← c.getObjVal? "position")))
+              else pure acc
+          | .error _ =>
+              -- bare {x,y,z} — treat as xnode position directly
+              pure (acc.push (← parseVec c))
+    | .error _ => pure #[]
+  pure (id, poly, pts)
 
 private def ofExcept (e : Except String α) : IO α :=
   match e with

@@ -61,7 +61,8 @@
    pipeline. Near-degenerate DMWT outputs (fan-triangulated planar patches)
    cause pmp's kd-tree projection to loop; the hang is isolated via `fork()`:
    child sends mesh to parent via pipe, parent enforces a 5-second timeout and
-   falls back to raw DMWT on expiry. RDP tolerance fixed at 0.005 (matches
+   reports the patch as unresolved (empty mesh, nV=0) on expiry — no raw-DMWT
+   fallback. RDP tolerance fixed at 0.005 (matches
    original value; a later commit had incorrectly tightened it to 0.002,
    which caused 4 patches to exceed DMWT's BADEDGE_LIMIT=30).
 
